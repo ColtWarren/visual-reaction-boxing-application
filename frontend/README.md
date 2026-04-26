@@ -7,7 +7,7 @@ Initialized with Vite in Step 2.
 
 **Core (installed in Step 2):**
 
-- React 18+
+- React 19+
 - TypeScript
 - Vite
 - Tailwind CSS (utility-first styling)
