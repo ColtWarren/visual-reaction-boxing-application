@@ -6,6 +6,7 @@ Initialized with Vite in Step 2.
 ## Planned Stack
 
 **Core (installed in Step 2):**
+
 - React 18+
 - TypeScript
 - Vite
@@ -16,10 +17,12 @@ Initialized with Vite in Step 2.
 - vite-plugin-pwa
 
 **Tooling (installed in Step 2):**
+
 - ESLint
 - Prettier
 
 **Candidate libraries (added when needed, not at init):**
+
 - Framer Motion — for polish-phase micro-interactions
 
 ## Node Version

@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+dev-dist
+build
+
+# Coverage
+coverage
+
+# Vite cache
+.vite
+
+# Lockfiles (Prettier shouldn't reformat these)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Generated
+*.min.js
+*.min.css
