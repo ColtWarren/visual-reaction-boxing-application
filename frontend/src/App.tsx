@@ -1,12 +1,19 @@
 import Cue from './components/Cue';
+import { useInputHandler } from './hooks/useInputHandler';
 import { useStimulusEngine } from './hooks/useStimulusEngine';
 
 function App() {
   // useStimulusEngine drives cue appearance/disappearance on a timer.
-  // Returns { cue } object (forward-compatible with future Step 6+ controls
-  // like pause/restart per R39C). Destructure to access the current cue.
-  // Replaces Step 5.5's lazy useState one-shot with continuous cycling.
+  // useInputHandler receives the current cue and classifies keyboard
+  // input against it, with per-cue locking and event-object state.
+  // Single engine owner: App is the sole consumer of useStimulusEngine;
+  // useInputHandler receives cue as an argument.
   const { cue } = useStimulusEngine();
+  // lastInput is captured but not rendered yet — visual feedback for
+  // correct/incorrect inputs is a separate concern (Step 6.5 or 7).
+  // Underscore prefix signals intentional non-consumption. Step 7 will
+  // replace _lastInput with actual usage (e.g., reaction-time analysis).
+  const { lastInput: _lastInput } = useInputHandler(cue);
 
   return (
     // min-h-dvh: dynamic viewport height — adjusts for mobile address bar collapse/expand
