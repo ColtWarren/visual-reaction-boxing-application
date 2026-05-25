@@ -1,22 +1,22 @@
 import type { CueMode } from '../hooks/useSessionState';
-import type { CueDictionaryEntry } from '../lib/cueDictionary';
+import type { ActiveStimulus } from '../types/stimulus';
 import Cue from './Cue';
 
 interface RunningViewProps {
   mode: CueMode;
-  cue: CueDictionaryEntry | null;
+  stimulus: ActiveStimulus | null;
   onStop: () => void;
 }
 
-export function RunningView({ mode, cue, onStop }: RunningViewProps) {
+export function RunningView({ mode, stimulus, onStop }: RunningViewProps) {
   const showVisualCue = mode === 'visual' || mode === 'combined';
   const showAudioPlaceholder = mode === 'audio';
 
   return (
     <>
       {/* Visual cue (in visual or combined modes) */}
-      {showVisualCue && cue && (
-        <Cue color={cue.color} position={cue.position} />
+      {showVisualCue && stimulus && (
+        <Cue color={stimulus.cue.color} position={stimulus.cue.position} />
       )}
 
       {/* Audio mode activity indicator (R49 Q5 revision) */}
