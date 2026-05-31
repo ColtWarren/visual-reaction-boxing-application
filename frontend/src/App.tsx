@@ -3,6 +3,7 @@ import { useStimulusEngine } from './hooks/useStimulusEngine';
 import { useInputHandler } from './hooks/useInputHandler';
 import { PreSessionScreen } from './components/PreSessionScreen';
 import { RunningView } from './components/RunningView';
+import { SessionSummary } from './components/SessionSummary';
 
 function App() {
   const session = useSessionState();
@@ -26,8 +27,10 @@ function App() {
   const isVisualStimulusActive = isSessionRunning && isVisualModeSelected;
   const stimulusForInput = isVisualStimulusActive ? stimulus : null;
 
-  // Step 6 keyboard input handler — preserved, now receives status+mode-gated stimulus
-  const { lastInput: _lastInput } = useInputHandler(stimulusForInput);
+  // Step 6 keyboard input handler — now side-effect-only via callback inversion
+  // (R57 Decision 2). The hook fires session.recordReaction synchronously
+  // inside the keydown handler after the id-keyed lock seals (R58 Refinement A).
+  useInputHandler(stimulusForInput, session.recordReaction);
 
   return (
     <main className="relative min-h-dvh w-full bg-zinc-950">
@@ -37,11 +40,16 @@ function App() {
           onModeChange={session.setMode}
           onStart={session.startSession}
         />
-      ) : (
+      ) : session.status === 'running' ? (
         <RunningView
           mode={session.mode}
           stimulus={isVisualStimulusActive ? stimulus : null}
           onStop={session.stopSession}
+        />
+      ) : (
+        <SessionSummary
+          results={session.results}
+          onDismiss={session.dismissSummary}
         />
       )}
     </main>

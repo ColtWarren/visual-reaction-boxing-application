@@ -7,15 +7,22 @@
  *                   Presses during dark canvas (no cue visible) are silently
  *                   ignored. Per-cue input locking: only the FIRST valid keypress
  *                   per cue counts; subsequent presses are ignored.
- * Step 8 (current): receives ActiveStimulus | null instead of the bare cue
- *                   dictionary entry. Lock reset is now keyed on stimulus.id
- *                   (R54 unanimous) rather than prop-reference change — robust
- *                   against same-object repeats from the engine's static
- *                   dictionary. ActiveStimulus carries id + appearedAtMs;
- *                   appearedAtMs is received but NOT used here yet.
- * Step 9+: timing measurement will compute reaction time by subtracting
- *          stimulus.appearedAtMs (already carried by ActiveStimulus) from
- *          the inputAtMs already captured here.
+ * Step 8: receives ActiveStimulus | null instead of the bare cue dictionary
+ *         entry. Lock reset is now keyed on stimulus.id (R54 unanimous)
+ *         rather than prop-reference change — robust against same-object
+ *         repeats from the engine's static dictionary. ActiveStimulus
+ *         carries id + appearedAtMs.
+ * Step 9 (current): timing math is here. On each classified press, the hook
+ *         computes reactionTimeMs = inputAtMs - stimulus.appearedAtMs (both
+ *         performance.now() — Step 8 ensured same clock source) and emits
+ *         a ReactionResult { stimulusId, classification, reactionTimeMs }
+ *         via an onReaction callback (R57 callback inversion — no useEffect
+ *         bridge). onReaction is mirrored into a ref via useLayoutEffect
+ *         (R44A pattern) so the once-attached listener calls the latest
+ *         callback without re-attaching. R58 Refinement A: the id-keyed
+ *         lock seals BEFORE the callback fires, so a rapid second keypress
+ *         arriving during the synchronous reducer dispatch cannot produce
+ *         a duplicate record.
  *
  * Important: arrow keys map to cue position/color, NOT defensive movement
  * direction. For example, the red cue appears at the LEFT edge of the canvas
@@ -41,13 +48,14 @@
  *   This eliminates the race where a keydown event could fire between
  *   paint and passive-effect execution, reading stale refs.
  *
- * Event object return shape (Decision 4, v2 R42A + R42C):
- *   Returns InputResult | null, NOT a bare classification string. This solves
- *   (a) React state equality bailout — repeated identical classifications
- *   would not re-trigger consumer effects if state were a primitive; the
- *   object reference + inputAtMs timestamp guarantee distinguishability —
- *   and (b) gives Step 9 the timestamp it needs for reaction-time measurement
- *   without further state-shape evolution.
+ * Side-effect-only after Step 9 (R57 Decision 2):
+ *   The hook returns void. Each classified press fires onReaction
+ *   synchronously inside the keydown handler — no React state, no
+ *   equality-bailout concerns, no useEffect bridge that Strict Mode could
+ *   double-fire. Step 6's event-object return shape (InputResult) is
+ *   retired; ReactionResult from types/reaction.ts replaces it with
+ *   stimulusId + reactionTimeMs added for Step 9's measurement and
+ *   Step 11's per-cue scorecard.
  *
  * Per-stimulus input locking (Decision 4 v3 R43A → Step 8 R54 id-keyed):
  *   Once a valid keypress classifies the current stimulus, a boolean flag is
@@ -62,9 +70,13 @@
  *   condition changed.)
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { V1CardinalColor } from '../lib/cueDictionary';
 import type { ActiveStimulus } from '../types/stimulus';
+import type {
+  ReactionClassification,
+  ReactionResult,
+} from '../types/reaction';
 
 /**
  * Maps arrow key event.key values to their expected V1 cardinal cue colors.
@@ -85,41 +97,17 @@ const ARROW_KEY_TO_EXPECTED_COLOR = {
 } as const satisfies Record<string, V1CardinalColor>;
 
 /**
- * Classification of a single classified input. Always paired with a timestamp
- * in InputResult to avoid React state equality bailout for consecutive
- * identical classifications.
- */
-export type InputClassification = 'correct' | 'incorrect';
-
-/**
- * Event-object result of a single classified keypress. Contains the
- * classification AND the timestamp at which the keypress was processed.
- * Step 9+ will use inputAtMs minus stimulus.appearedAtMs to compute reaction
- * time (both timestamps come from performance.now() — Step 8 engine captures
- * appearedAtMs on the same monotonic clock as this hook's inputAtMs).
- */
-export type InputResult = {
-  classification: InputClassification;
-  inputAtMs: number;
-};
-
-/**
- * Returns an object with the most recent input result, or null if no valid
- * keypress has occurred yet. Object shape (vs bare value) is forward-
- * compatible with Step 9+ adding fields without breaking call sites.
+ * Side-effect-only after Step 9. Each classified press invokes onReaction
+ * with a ReactionResult; the hook returns void.
  *
  * Usage:
  *   const { stimulus } = useStimulusEngine(active);
- *   const { lastInput } = useInputHandler(stimulus);
- *   // lastInput is InputResult | null
- *   // lastInput?.classification — 'correct' or 'incorrect'
- *   // lastInput?.inputAtMs — performance.now() value at keypress
+ *   useInputHandler(stimulus, session.recordReaction);
  */
-export function useInputHandler(currentStimulus: ActiveStimulus | null): {
-  lastInput: InputResult | null;
-} {
-  const [lastInput, setLastInput] = useState<InputResult | null>(null);
-
+export function useInputHandler(
+  currentStimulus: ActiveStimulus | null,
+  onReaction: (result: ReactionResult) => void,
+): void {
   // Mirror currentStimulus into a ref so the keydown listener (attached once)
   // always reads the latest stimulus value at keypress time. (Decision 8, Option b.)
   const currentStimulusRef = useRef<ActiveStimulus | null>(currentStimulus);
@@ -174,6 +162,15 @@ export function useInputHandler(currentStimulus: ActiveStimulus | null): {
     }
   }, [currentStimulus]);
 
+  // Mirror onReaction so the once-attached keydown listener can invoke the
+  // latest callback without re-attaching. useLayoutEffect (not useEffect)
+  // matches the R44A pattern for paint-phase synchronization: the ref must
+  // be current before any keydown event can fire against the new render.
+  const onReactionRef = useRef(onReaction);
+  useLayoutEffect(() => {
+    onReactionRef.current = onReaction;
+  }, [onReaction]);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       // Step 1: Filter to arrow keys only. Non-arrow keys (Space, Enter,
@@ -205,18 +202,24 @@ export function useInputHandler(currentStimulus: ActiveStimulus | null): {
       // changes (handled by the mirror effect above). This correctly handles
       // same-color cue repeats because Step 8's ActiveStimulus carries a
       // fresh id per occurrence, independent of cue object identity.
+      //
+      // R58 Refinement A: seal the lock BEFORE invoking onReaction. A rapid
+      // second keypress arriving during the synchronous reducer dispatch
+      // would otherwise pass this guard and produce a duplicate
+      // ReactionResult. Lock seal must precede side-effect emission.
       if (hasClassifiedCurrentCueRef.current) return;
       hasClassifiedCurrentCueRef.current = true;
 
-      // Step 6: Classify and set event-object state. The object's identity
-      // changes on every classification (new object literal + new timestamp),
-      // so consumer effects watching lastInput fire reliably even for
-      // consecutive identical classifications. (Decision 4 v2 R42A.)
-      // appearedAtMs from the stimulus is NOT used here — Step 9 will compute
-      // reactionTimeMs = inputAtMs - stimulus.appearedAtMs at the consumer.
-      setLastInput({
-        classification: cue.color === expectedColor ? 'correct' : 'incorrect',
-        inputAtMs: performance.now(),
+      // Step 6: Classify, compute reaction time, emit ReactionResult via the
+      // ref-mirrored callback. Both timestamps come from performance.now()
+      // (Step 8 engine captures appearedAtMs on the same monotonic clock).
+      const inputAtMs = performance.now();
+      const classification: ReactionClassification =
+        cue.color === expectedColor ? 'correct' : 'incorrect';
+      onReactionRef.current?.({
+        stimulusId: stimulus.id,
+        classification,
+        reactionTimeMs: inputAtMs - stimulus.appearedAtMs,
       });
     }
 
@@ -227,6 +230,4 @@ export function useInputHandler(currentStimulus: ActiveStimulus | null): {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []); // listener attached once per mount; stimulus + lock read via refs
-
-  return { lastInput };
 }
