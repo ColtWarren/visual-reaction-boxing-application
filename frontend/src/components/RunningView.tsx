@@ -1,3 +1,4 @@
+import { DEFENSE_VISUAL_MAP } from '../lib';
 import type { CueMode } from '../hooks/useSessionState';
 import type { ActiveStimulus } from '../types/stimulus';
 import Cue from './Cue';
@@ -14,9 +15,14 @@ export function RunningView({ mode, stimulus, onStop }: RunningViewProps) {
 
   return (
     <>
-      {/* Visual cue (in visual or combined modes) */}
+      {/* Visual cue (in visual or combined modes). Step 10: color/position
+          derive from the defense family via DEFENSE_VISUAL_MAP — the single
+          source of truth. Cue stays a pure presentational component. */}
       {showVisualCue && stimulus && (
-        <Cue color={stimulus.cue.color} position={stimulus.cue.position} />
+        <Cue
+          color={DEFENSE_VISUAL_MAP[stimulus.defense].color}
+          position={DEFENSE_VISUAL_MAP[stimulus.defense].position}
+        />
       )}
 
       {/* Audio mode activity indicator (R49 Q5 revision) */}

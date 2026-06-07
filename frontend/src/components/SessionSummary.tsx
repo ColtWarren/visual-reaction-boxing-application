@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { ReactionResult } from '../types/reaction';
+import type { ReactionResult, HitReaction } from '../types/reaction';
 
 interface SessionSummaryProps {
   results: ReactionResult[];
@@ -17,13 +17,26 @@ interface SummaryStats {
 }
 
 function computeSummaryStats(results: ReactionResult[]): SummaryStats {
+  // Filter to hits only via type guard (Step 10 producer emits only 'hit',
+  // but the discriminated shape accepts all variants forward-compat for
+  // Step 11's miss detection and decoy correct-ignores). Narrowing to
+  // HitReaction unlocks .classification and .reactionTimeMs safely.
+  const hits: HitReaction[] = results.filter(
+    (r): r is HitReaction => r.result === 'hit',
+  );
+
+  const correct = hits.filter((r) => r.classification === 'correct');
+
+  // Total counts all results (hits + misses + correct-ignores). Step 10:
+  // total === hits.length because only 'hit' is produced. Step 11+ will count
+  // misses and correct-ignores here too.
   const total = results.length;
-  const correct = results.filter((r) => r.classification === 'correct');
   const incorrectCount = total - correct.length;
 
+  // RT stats rebase onto hits (misses/ignores carry no reactionTimeMs).
   const averageAllMs =
-    total > 0
-      ? results.reduce((sum, r) => sum + r.reactionTimeMs, 0) / total
+    hits.length > 0
+      ? hits.reduce((sum, r) => sum + r.reactionTimeMs, 0) / hits.length
       : null;
 
   const averageCorrectMs =

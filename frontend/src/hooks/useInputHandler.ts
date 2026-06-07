@@ -23,9 +23,18 @@
  *         lock seals BEFORE the callback fires, so a rapid second keypress
  *         arriving during the synchronous reducer dispatch cannot produce
  *         a duplicate record.
+ * Step 10 (current): defense-family validation replaces Step 9's color-based
+ *         validation. stimulus.defense is the single source of truth across
+ *         visual, audio, and combined modes. The arrow key → expected defense
+ *         mapping lives in lib/defenseVisualMap.ts (ARROW_KEY_TO_EXPECTED_DEFENSE).
+ *         Emits the discriminated ReactionResult 'hit' variant. The hook is
+ *         fully mode-agnostic — audio-mode input gating (refusing keypresses
+ *         until audioStartedAtMs exists) is handled at the consumer (App.tsx
+ *         stimulusForInput gate), not here.
  *
- * Important: arrow keys map to cue position/color, NOT defensive movement
- * direction. For example, the red cue appears at the LEFT edge of the canvas
+ * Important: arrow keys map to cue position (derived from defense family via
+ * DEFENSE_VISUAL_MAP), NOT defensive movement direction. For example, the
+ * slip-lead defense renders as a red cue at the LEFT edge of the canvas
  * (defending a left hook would actually involve rolling RIGHT in real boxing),
  * but the player presses ArrowLeft because that matches the cue's visual
  * location. The coaching layer (Phase 2+) will teach the body-movement
@@ -71,34 +80,24 @@
  */
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import type { V1CardinalColor } from '../lib/cueDictionary';
+import { ARROW_KEY_TO_EXPECTED_DEFENSE } from '../lib';
 import type { ActiveStimulus } from '../types/stimulus';
 import type {
   ReactionClassification,
-  ReactionResult,
+  HitReaction,
 } from '../types/reaction';
 
 /**
- * Maps arrow key event.key values to their expected V1 cardinal cue colors.
- * Defined at module scope (no re-creation per render). The mapping is
- * spatially intuitive: arrow direction matches cue POSITION on the canvas
- * (NOT defensive body movement — see hook JSDoc for the distinction).
- *
- *   ArrowLeft  → red    (left edge cue — defend a left hook)
- *   ArrowRight → blue   (right edge cue — defend a right hook)
- *   ArrowUp    → green  (top center cue — block a straight punch)
- *   ArrowDown  → yellow (bottom center cue — body defense)
- */
-const ARROW_KEY_TO_EXPECTED_COLOR = {
-  ArrowLeft: 'red',
-  ArrowRight: 'blue',
-  ArrowUp: 'green',
-  ArrowDown: 'yellow',
-} as const satisfies Record<string, V1CardinalColor>;
-
-/**
  * Side-effect-only after Step 9. Each classified press invokes onReaction
- * with a ReactionResult; the hook returns void.
+ * with a HitReaction; the hook returns void.
+ *
+ * Step 10: emits the discriminated ReactionResult 'hit' variant (R61 Q5 lock):
+ *   { result: 'hit', stimulusId, classification, reactionTimeMs }
+ * The producer emits ONLY 'hit'. The 'miss' and 'correct-ignore' variants are
+ * produced by Step 11's miss detection and decoy mechanics respectively.
+ * onReaction is typed as (result: HitReaction) => void — honest about what
+ * the producer actually emits. A consumer accepting the wider ReactionResult
+ * (e.g. session.recordReaction) remains assignable by contravariance.
  *
  * Usage:
  *   const { stimulus } = useStimulusEngine(active);
@@ -106,7 +105,7 @@ const ARROW_KEY_TO_EXPECTED_COLOR = {
  */
 export function useInputHandler(
   currentStimulus: ActiveStimulus | null,
-  onReaction: (result: ReactionResult) => void,
+  onReaction: (result: HitReaction) => void,
 ): void {
   // Mirror currentStimulus into a ref so the keydown listener (attached once)
   // always reads the latest stimulus value at keypress time. (Decision 8, Option b.)
@@ -175,10 +174,9 @@ export function useInputHandler(
     function handleKeyDown(event: KeyboardEvent) {
       // Step 1: Filter to arrow keys only. Non-arrow keys (Space, Enter,
       // letter keys, etc.) are silently ignored. The lookup returns undefined
-      // for any key not in ARROW_KEY_TO_EXPECTED_COLOR.
-      const expectedColor =
-        ARROW_KEY_TO_EXPECTED_COLOR[event.key as keyof typeof ARROW_KEY_TO_EXPECTED_COLOR];
-      if (expectedColor === undefined) return;
+      // for any key not in ARROW_KEY_TO_EXPECTED_DEFENSE.
+      const expectedDefense = ARROW_KEY_TO_EXPECTED_DEFENSE[event.key];
+      if (expectedDefense === undefined) return;
 
       // Step 2: Prevent browser default (page scrolling on arrow keys).
       // Only called for MAPPED arrow keys, not all keys — non-arrow keys
@@ -192,10 +190,10 @@ export function useInputHandler(
 
       // Step 4: Read the latest stimulus via ref (avoids stale closure).
       // Silently ignore presses during dark canvas (stimulus === null) per
-      // founder decision. Drill into stimulus.cue for the classification data.
+      // founder decision. stimulus.defense is the single source of truth for
+      // classification across visual, audio, and combined modes (Q3 lock).
       const stimulus = currentStimulusRef.current;
       if (stimulus === null) return;
-      const cue = stimulus.cue;
 
       // Step 5: Per-stimulus input locking. If we've already classified the
       // current stimulus, ignore the press. The lock resets when stimulus.id
@@ -210,17 +208,22 @@ export function useInputHandler(
       if (hasClassifiedCurrentCueRef.current) return;
       hasClassifiedCurrentCueRef.current = true;
 
-      // Step 6: Classify, compute reaction time, emit ReactionResult via the
-      // ref-mirrored callback. Both timestamps come from performance.now()
-      // (Step 8 engine captures appearedAtMs on the same monotonic clock).
+      // Step 6: Classify, compute reaction time, emit the discriminated 'hit'
+      // ReactionResult via the ref-mirrored callback. Both timestamps come from
+      // performance.now() (Step 8 engine captures appearedAtMs on the same
+      // monotonic clock). The visual-mode RT anchor is stimulus.appearedAtMs;
+      // the audio-mode anchor (audioStartedAtMs) is handled at the App.tsx
+      // input-gate integration point, NOT here — this hook stays mode-agnostic.
       const inputAtMs = performance.now();
       const classification: ReactionClassification =
-        cue.color === expectedColor ? 'correct' : 'incorrect';
-      onReactionRef.current?.({
+        stimulus.defense === expectedDefense ? 'correct' : 'incorrect';
+      const reaction: HitReaction = {
+        result: 'hit',
         stimulusId: stimulus.id,
         classification,
         reactionTimeMs: inputAtMs - stimulus.appearedAtMs,
-      });
+      };
+      onReactionRef.current?.(reaction);
     }
 
     window.addEventListener('keydown', handleKeyDown);

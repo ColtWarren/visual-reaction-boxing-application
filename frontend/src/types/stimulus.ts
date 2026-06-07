@@ -1,21 +1,33 @@
-import type { CueDictionaryEntry } from '../lib/cueDictionary';
-
 /**
- * A single stimulus occurrence presented to the user.
+ * Step 10: ActiveStimulus evolves from color-centric to attack-centric.
  *
- * Wraps the static cue (what to show) with per-occurrence runtime metadata:
- * - `id`: a fresh monotonic integer per occurrence, even when the same color
- *   repeats. Stable identity for the input lock (R54) and the Step 11 scorecard.
- * - `appearedAtMs`: stimulus ACTIVATION timestamp from performance.now(), captured
- *   when the engine sets state. NOT a lab-grade paint timestamp — there is a small
- *   systematic render/paint offset, acceptable for within-app relative measurement.
- *   Used by Step 9 for reaction time (inputAtMs - appearedAtMs).
+ * Step 9 shape: { id, color, position, appearedAtMs }
+ * Step 10 shape: { id, attack, defense, voiceLineKey, appearedAtMs,
+ *                  audioRequestedAtMs?, audioStartedAtMs? }
  *
- * Nullability is top-level (ActiveStimulus | null) wherever consumed: the object is
- * either fully present (all three fields) or null. Never per-field-nullable.
+ * Visual rendering: derive color/position from DEFENSE_VISUAL_MAP[stimulus.defense]
+ * Audio rendering: lookup voice line text from VOICE_LINES_EN[stimulus.voiceLineKey]
+ *
+ * Audio timing fields are populated by the audio renderer (renderer-observed
+ * timing metadata). The engine emits the immutable initial event with
+ * appearedAtMs; the audio renderer reports back audioRequestedAtMs (at speak()
+ * call) and audioStartedAtMs (at utterance.onstart). These are the load-bearing
+ * fields for Q1 Option C (R61 lock): pure audio mode RT anchors to
+ * audioStartedAtMs; pure audio mode input gates until audioStartedAtMs exists.
+ *
+ * The id field remains stance-agnostic, mount-level, monotonically increasing
+ * (Step 8 lesson). It is the load-bearing key for R54 id-keyed locks and the
+ * stale-callback guards in the audio renderer (R61 Q1 Codex catch).
  */
+
+import type { AttackName, DefenseFamily, VoiceLineKey } from './attack';
+
 export interface ActiveStimulus {
   id: number;
-  cue: CueDictionaryEntry;
+  attack: AttackName;
+  defense: DefenseFamily;
+  voiceLineKey: VoiceLineKey;
   appearedAtMs: number;
+  audioRequestedAtMs?: number;
+  audioStartedAtMs?: number;
 }
