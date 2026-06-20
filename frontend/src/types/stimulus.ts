@@ -28,6 +28,17 @@ export interface ActiveStimulus {
   defense: DefenseFamily;
   voiceLineKey: VoiceLineKey;
   appearedAtMs: number;
+  /**
+   * Timestamp (performance.now()) when this stimulus expires.
+   * Computed at activation as appearedAtMs + DISPLAY_WINDOW_MS.
+   * Future Theme 1 will support per-cue variable expiry by computing
+   * this from per-attack difficulty parameters.
+   *
+   * Consumed by useMissDetector to schedule miss emission accurately;
+   * the engine's expiry timing is observable to consumers via this field
+   * rather than via an exported DISPLAY_WINDOW_MS constant.
+   */
+  expiresAtMs: number;
   audioRequestedAtMs?: number;
   audioStartedAtMs?: number;
 }

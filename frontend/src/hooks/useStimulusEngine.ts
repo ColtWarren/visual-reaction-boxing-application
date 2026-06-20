@@ -8,6 +8,20 @@ const ISI_MIN_MS = 2000;
 const ISI_MAX_MS = 5000;
 
 /**
+ * Safety buffer for round-boundary activation guard.
+ *
+ * Browser setTimeout precision is not 1ms-accurate (4ms min clamp; 10-15ms
+ * typical under load). A cue activated such that its miss timeout would fire
+ * within this margin of `roundEndsAtMs` risks the timeout firing AFTER
+ * `roundTimerExpired` sets `active = false`, which would suppress the miss
+ * via useMissDetector's active check, violating R63 lock 1.
+ *
+ * 16ms = one frame at 60fps. Covers typical jitter without materially
+ * reducing training density (16/179_200 ≈ 0.0089% of a 3-min round).
+ */
+const ROUND_BOUNDARY_SAFETY_MS = 16;
+
+/**
  * Pick a random attack from the dictionary. Stance-agnostic (Step 10):
  * the dictionary stores attacks; visual + audio rendering derive downstream
  * from defense family and voice line key respectively.
@@ -30,6 +44,22 @@ export interface StimulusEngineState {
   recordAudioRequested: (stimulusId: number, requestedAtMs: number) => void;
   recordAudioStarted: (stimulusId: number, startedAtMs: number) => void;
   recordAudioFailed: (stimulusId: number) => void;
+}
+
+interface UseStimulusEngineProps {
+  active: boolean;
+  /**
+   * Timestamp (performance.now()) at which the current round ends.
+   * When set, the engine refuses to activate a new stimulus if the
+   * stimulus would not fully expire before this timestamp PLUS the
+   * safety buffer.
+   *
+   * Null when status is idle/rest/summary (no round bound applies).
+   *
+   * Preserves R63 lock 1 by construction: no cue is ever activated
+   * that could straddle a round boundary.
+   */
+  roundEndsAtMs: number | null;
 }
 
 /**
@@ -58,7 +88,7 @@ export interface StimulusEngineState {
  *   cancelled guard. Used for reaction-time math (inputAtMs - appearedAtMs)
  *   in visual/combined modes.
  */
-export function useStimulusEngine(active: boolean): StimulusEngineState {
+export function useStimulusEngine({ active, roundEndsAtMs }: UseStimulusEngineProps): StimulusEngineState {
   const [currentStimulus, setCurrentStimulus] = useState<ActiveStimulus | null>(null);
   const timeoutIdRef = useRef<number | null>(null);
   // Mount-level monotonic counter. NEVER reset per session (R53 I1) — ids
@@ -91,17 +121,45 @@ export function useStimulusEngine(active: boolean): StimulusEngineState {
       const isi = ISI_MIN_MS + Math.random() * (ISI_MAX_MS - ISI_MIN_MS);
       timeoutIdRef.current = window.setTimeout(() => {
         if (cancelled) return;
-        // Show stimulus — capture id + timestamp at state-set, AFTER the
-        // cancelled guard. The guard-before-increment prevents a Strict Mode
-        // discarded mount from advancing the id counter or capturing a stale
-        // timestamp. (R53 I1, I6.)
+
+        // Round-boundary activation guard (Anchor 6, with safety buffer).
+        // Refuse to activate a cue whose display window could not fully
+        // expire before the round ends plus the jitter margin. Preserves
+        // R63 lock 1 ("every unanswered cue -> miss") by construction: no
+        // cue is ever activated that could straddle a round boundary, so no
+        // pending miss timeout can outlive the round's active=true window.
+        //
+        // Load-bearing: `>=` (not `>`) defeats same-tick equality races, and
+        // `+ ROUND_BOUNDARY_SAFETY_MS` covers setTimeout jitter.
+        const wouldActivateAtMs = performance.now();
+        const wouldExpireAtMs = wouldActivateAtMs + DISPLAY_WINDOW_MS;
+        if (
+          roundEndsAtMs != null &&
+          wouldExpireAtMs + ROUND_BOUNDARY_SAFETY_MS >= roundEndsAtMs
+        ) {
+          // Cue cannot fit cleanly within remaining round time + safety
+          // buffer. Do NOT activate; do NOT schedule another ISI cycle. The
+          // round ends naturally via roundTimerExpired. Engine stays quiet
+          // for the final ~(DISPLAY_WINDOW_MS + ROUND_BOUNDARY_SAFETY_MS)
+          // (~816ms) of every round.
+          return;
+        }
+
+        // Show stimulus — capture id + timestamps at state-set, AFTER the
+        // cancelled guard AND the round-boundary guard. The guard-before-
+        // increment prevents a Strict Mode discarded mount (or a blocked
+        // activation) from advancing the id counter or capturing a stale
+        // timestamp. (R53 I1, I6.) appearedAtMs and expiresAtMs share the
+        // single wouldActivateAtMs read so expiresAtMs === appearedAtMs +
+        // DISPLAY_WINDOW_MS exactly (no double performance.now() drift).
         const attack = pickRandomAttack();
         const stimulus: ActiveStimulus = {
           id: nextStimulusIdRef.current++,
           attack: attack.attack,
           defense: attack.defense,
           voiceLineKey: attack.voiceLineKey,
-          appearedAtMs: performance.now(),
+          appearedAtMs: wouldActivateAtMs,
+          expiresAtMs: wouldExpireAtMs,
           // audioRequestedAtMs and audioStartedAtMs are populated by audio renderer
         };
         setCurrentStimulus(stimulus);
@@ -136,7 +194,7 @@ export function useStimulusEngine(active: boolean): StimulusEngineState {
       // internal state for cleanliness and Strict Mode determinism.
       setCurrentStimulus(null);
     };
-  }, [active]);
+  }, [active, roundEndsAtMs]);
 
   // Audio timing setters (Step 10, Path A). The audio renderer invokes these
   // via callbacks; each uses a functional state update guarded by stimulus id

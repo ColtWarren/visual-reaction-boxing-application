@@ -2,8 +2,11 @@ import { useSessionState } from './hooks/useSessionState';
 import { useStimulusEngine } from './hooks/useStimulusEngine';
 import { useInputHandler } from './hooks/useInputHandler';
 import { useAudioCueRenderer } from './hooks/useAudioCueRenderer';
+import { useRoundTimer } from './hooks/useRoundTimer';
+import { useMissDetector } from './hooks/useMissDetector';
 import { PreSessionScreen } from './components/PreSessionScreen';
 import { RunningView } from './components/RunningView';
+import { RestView } from './components/RestView';
 import { SessionSummary } from './components/SessionSummary';
 
 function App() {
@@ -13,8 +16,17 @@ function App() {
   // The audio cue emitter (Step 10) will be another parallel consumer
   // of the same engine output, gated by mode at its own use site.
   const isSessionRunning = session.status === 'running';
+
+  // Step 11 (Anchor 6): the current round ends at phaseStartedAtMs +
+  // roundDurationMs while running. Null in idle/rest/summary so the engine
+  // applies no round bound (the activation guard only fires when this is set).
+  const roundEndsAtMs =
+    isSessionRunning && session.phaseStartedAtMs != null
+      ? session.phaseStartedAtMs + session.config.roundDurationMs
+      : null;
+
   const { stimulus, recordAudioRequested, recordAudioStarted, recordAudioFailed } =
-    useStimulusEngine(isSessionRunning);
+    useStimulusEngine({ active: isSessionRunning, roundEndsAtMs });
 
   // Consumer-side gating by status AND mode (Option C from R49 Q10,
   // tightened per R50C idle-stale-stimulus fix):
@@ -73,25 +85,65 @@ function App() {
   // Step 6 keyboard input handler — now side-effect-only via callback inversion
   // (R57 Decision 2). The hook fires session.recordReaction synchronously
   // inside the keydown handler after the id-keyed lock seals (R58 Refinement A).
-  useInputHandler(stimulusForInput, session.recordReaction);
+  // Step 11: currentRoundIndex injected so each HitReaction carries round metadata.
+  useInputHandler(stimulusForInput, session.currentRoundIndex, session.recordReaction);
+
+  // Step 11: miss detection (Anchor 7). Active only while running; the timeout
+  // registry survives engine-driven stimulus->null states. Emits MissReaction
+  // via session.recordReaction; the audio-failure rule (R63 lock 2) suppresses
+  // pure-audio system failures. Passed the raw engine `stimulus` (NOT the
+  // input-gated/anchor-substituted one) so the snapshot cache records true
+  // engine timing fields including audioStartedAtMs.
+  useMissDetector({
+    active: isSessionRunning,
+    stimulus,
+    mode: session.mode,
+    currentRoundIndex: session.currentRoundIndex,
+    results: session.results,
+    onMiss: session.recordReaction,
+  });
+
+  // Step 11: round/rest timer. Timestamp-based; drives phase completion via
+  // completeRound/completeRest and exposes remainingMs for the RestView countdown.
+  const { remainingMs } = useRoundTimer({
+    status: session.status,
+    phaseStartedAtMs: session.phaseStartedAtMs,
+    config: session.config,
+    onCompleteRound: session.completeRound,
+    onCompleteRest: session.completeRest,
+  });
 
   return (
     <main className="relative min-h-dvh w-full bg-zinc-950">
       {session.status === 'idle' ? (
         <PreSessionScreen
           mode={session.mode}
+          config={session.config}
           onModeChange={session.setMode}
+          onConfigChange={session.setConfig}
           onStart={session.startSession}
         />
       ) : session.status === 'running' ? (
         <RunningView
           mode={session.mode}
           stimulus={isVisualStimulusActive ? stimulus : null}
+          currentRoundIndex={session.currentRoundIndex}
+          totalRounds={session.config.totalRounds}
+          onStop={session.stopSession}
+        />
+      ) : session.status === 'rest' ? (
+        <RestView
+          currentRoundIndex={session.currentRoundIndex}
+          totalRounds={session.config.totalRounds}
+          restDurationMs={session.config.restDurationMs}
+          restRemainingMs={remainingMs}
+          results={session.results}
           onStop={session.stopSession}
         />
       ) : (
         <SessionSummary
           results={session.results}
+          totalRounds={session.config.totalRounds}
           onDismiss={session.dismissSummary}
         />
       )}

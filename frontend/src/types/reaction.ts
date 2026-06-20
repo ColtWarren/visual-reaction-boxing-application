@@ -23,16 +23,19 @@ export interface HitReaction {
   stimulusId: number;
   classification: ReactionClassification;
   reactionTimeMs: number;
+  roundIndex: number;
 }
 
 export interface MissReaction {
   result: 'miss';
   stimulusId: number;
+  roundIndex: number;
 }
 
 export interface CorrectIgnoreReaction {
   result: 'correct-ignore';
   stimulusId: number;
+  roundIndex: number;
 }
 
 export type ReactionResult = HitReaction | MissReaction | CorrectIgnoreReaction;

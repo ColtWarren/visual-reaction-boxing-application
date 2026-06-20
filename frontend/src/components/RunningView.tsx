@@ -6,15 +6,30 @@ import Cue from './Cue';
 interface RunningViewProps {
   mode: CueMode;
   stimulus: ActiveStimulus | null;
+  currentRoundIndex: number;
+  totalRounds: number;
   onStop: () => void;
 }
 
-export function RunningView({ mode, stimulus, onStop }: RunningViewProps) {
+export function RunningView({
+  mode,
+  stimulus,
+  currentRoundIndex,
+  totalRounds,
+  onStop,
+}: RunningViewProps) {
   const showVisualCue = mode === 'visual' || mode === 'combined';
   const showAudioPlaceholder = mode === 'audio';
 
   return (
     <>
+      {/* Round counter overlay (top-left, non-interactive). currentRoundIndex
+          is 0-based; displayed round is currentRoundIndex + 1. pointer-events-none
+          keeps it from intercepting taps over the cue area. */}
+      <div className="fixed top-4 left-4 text-sm uppercase tracking-widest text-zinc-500 pointer-events-none">
+        Round {currentRoundIndex + 1} / {totalRounds}
+      </div>
+
       {/* Visual cue (in visual or combined modes). Step 10: color/position
           derive from the defense family via DEFENSE_VISUAL_MAP — the single
           source of truth. Cue stays a pure presentational component. */}

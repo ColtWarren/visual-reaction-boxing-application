@@ -1,112 +1,115 @@
 import { useMemo } from 'react';
-import type { ReactionResult, HitReaction } from '../types/reaction';
+import type { ReactionResult } from '../types/reaction';
+import { computeStats } from '../lib/sessionStats';
 
 interface SessionSummaryProps {
   results: ReactionResult[];
+  totalRounds: number;
   onDismiss: () => void;
 }
 
-interface SummaryStats {
-  total: number;
-  correctCount: number;
-  incorrectCount: number;
-  accuracyPercent: number;
-  averageAllMs: number | null;
-  averageCorrectMs: number | null;
-  bestCorrectMs: number | null;
+// Shipped 'N ms' / em-dash convention. computeStats returns 0 for avg/best RT
+// when there are no correct hits, which renders as the em-dash placeholder.
+function formatMs(ms: number): string {
+  return ms === 0 ? '—' : `${Math.round(ms)} ms`;
 }
 
-function computeSummaryStats(results: ReactionResult[]): SummaryStats {
-  // Filter to hits only via type guard (Step 10 producer emits only 'hit',
-  // but the discriminated shape accepts all variants forward-compat for
-  // Step 11's miss detection and decoy correct-ignores). Narrowing to
-  // HitReaction unlocks .classification and .reactionTimeMs safely.
-  const hits: HitReaction[] = results.filter(
-    (r): r is HitReaction => r.result === 'hit',
-  );
+export function SessionSummary({ results, totalRounds, onDismiss }: SessionSummaryProps) {
+  // R63 lock 1: accuracy = correct / (correct + incorrect); misses are a
+  // separate metric, NOT in the accuracy denominator. Inline math replaced by
+  // computeStats — the previous total-based denominator counted misses as
+  // incorrect once Step 11 began producing MissReactions.
+  const sessionStats = useMemo(() => computeStats(results), [results]);
 
-  const correct = hits.filter((r) => r.classification === 'correct');
+  // Per-round breakdown: one entry per round that had activity. Rounds with no
+  // results (e.g. an early-stopped round) are filtered out.
+  const roundStats = useMemo(() => {
+    return Array.from({ length: totalRounds }, (_, i) => {
+      const roundResults = results.filter((r) => r.roundIndex === i);
+      return { roundIndex: i, stats: computeStats(roundResults) };
+    }).filter(
+      ({ stats }) => stats.correctCount + stats.incorrectCount + stats.missCount > 0,
+    );
+  }, [results, totalRounds]);
 
-  // Total counts all results (hits + misses + correct-ignores). Step 10:
-  // total === hits.length because only 'hit' is produced. Step 11+ will count
-  // misses and correct-ignores here too.
-  const total = results.length;
-  const incorrectCount = total - correct.length;
-
-  // RT stats rebase onto hits (misses/ignores carry no reactionTimeMs).
-  const averageAllMs =
-    hits.length > 0
-      ? hits.reduce((sum, r) => sum + r.reactionTimeMs, 0) / hits.length
-      : null;
-
-  const averageCorrectMs =
-    correct.length > 0
-      ? correct.reduce((sum, r) => sum + r.reactionTimeMs, 0) / correct.length
-      : null;
-
-  const bestCorrectMs =
-    correct.length > 0
-      ? Math.min(...correct.map((r) => r.reactionTimeMs))
-      : null;
-
-  return {
-    total,
-    correctCount: correct.length,
-    incorrectCount,
-    accuracyPercent: total > 0 ? (correct.length / total) * 100 : 0,
-    averageAllMs,
-    averageCorrectMs,
-    bestCorrectMs,
-  };
-}
-
-function formatMs(value: number | null): string {
-  return value === null ? '—' : `${Math.round(value)} ms`;
-}
-
-export function SessionSummary({ results, onDismiss }: SessionSummaryProps) {
-  const stats = useMemo(() => computeSummaryStats(results), [results]);
+  const totalReactions =
+    sessionStats.correctCount + sessionStats.incorrectCount + sessionStats.missCount;
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center p-8 text-zinc-100">
+    <div className="flex min-h-dvh flex-col items-center overflow-y-auto p-8 text-zinc-100">
       <h1 className="mb-8 text-3xl font-bold">Session Complete</h1>
 
       <div className="mb-10 grid grid-cols-2 gap-x-12 gap-y-4 text-lg">
         <div className="text-zinc-400">Total reactions</div>
-        <div className="text-right tabular-nums">{stats.total}</div>
+        <div className="text-right tabular-nums">{totalReactions}</div>
 
         <div className="text-zinc-400">Correct</div>
         <div className="text-right tabular-nums text-emerald-400">
-          {stats.correctCount}
+          {sessionStats.correctCount}
         </div>
 
         <div className="text-zinc-400">Incorrect</div>
         <div className="text-right tabular-nums text-rose-400">
-          {stats.incorrectCount}
+          {sessionStats.incorrectCount}
         </div>
 
-        <div className="text-zinc-400">Accuracy</div>
-        <div className="text-right tabular-nums">
-          {Math.round(stats.accuracyPercent)}%
+        <div className="text-zinc-400">Missed</div>
+        <div className="text-right tabular-nums text-amber-400">
+          {sessionStats.missCount}
         </div>
 
-        <div className="border-t border-zinc-800 pt-4 text-zinc-400">
-          Avg reaction (all)
-        </div>
+        <div className="border-t border-zinc-800 pt-4 text-zinc-400">Accuracy</div>
         <div className="border-t border-zinc-800 pt-4 text-right text-xl tabular-nums">
-          {formatMs(stats.averageAllMs)}
+          {Math.round(sessionStats.accuracy)}%
         </div>
 
-        <div className="text-zinc-400">Avg reaction (correct)</div>
-        <div className="text-right tabular-nums">
-          {formatMs(stats.averageCorrectMs)}
-        </div>
+        <div className="text-zinc-400">Average RT (correct)</div>
+        <div className="text-right tabular-nums">{formatMs(sessionStats.avgRtMs)}</div>
 
-        <div className="text-zinc-400">Best (correct)</div>
-        <div className="text-right tabular-nums">
-          {formatMs(stats.bestCorrectMs)}
-        </div>
+        <div className="text-zinc-400">Best RT (correct)</div>
+        <div className="text-right tabular-nums">{formatMs(sessionStats.bestRtMs)}</div>
       </div>
+
+      {/* Per-round breakdown — only when multi-round AND at least one round had
+          activity. Misses appear as a separate metric per round. */}
+      {totalRounds > 1 && roundStats.length > 0 && (
+        <div className="mb-10 w-full max-w-md">
+          <div className="mb-3 text-sm uppercase tracking-wide text-zinc-400">
+            Per Round
+          </div>
+          {roundStats.map(({ roundIndex, stats }) => (
+            <div key={roundIndex} className="mb-3 border-b border-zinc-800 pb-3">
+              <div className="mb-1 text-sm font-bold">Round {roundIndex + 1}</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-zinc-400">
+                <div>
+                  Accuracy:{' '}
+                  <span className="tabular-nums text-zinc-100">
+                    {Math.round(stats.accuracy)}%
+                  </span>
+                </div>
+                <div>
+                  Avg RT:{' '}
+                  <span className="tabular-nums text-zinc-100">
+                    {formatMs(stats.avgRtMs)}
+                  </span>
+                </div>
+                <div>
+                  Hits / Missed:{' '}
+                  <span className="tabular-nums text-zinc-100">
+                    {stats.correctCount + stats.incorrectCount} / {stats.missCount}
+                  </span>
+                </div>
+                <div>
+                  Best RT:{' '}
+                  <span className="tabular-nums text-zinc-100">
+                    {formatMs(stats.bestRtMs)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <button
         type="button"

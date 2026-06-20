@@ -105,6 +105,7 @@ import type {
  */
 export function useInputHandler(
   currentStimulus: ActiveStimulus | null,
+  currentRoundIndex: number,
   onReaction: (result: HitReaction) => void,
 ): void {
   // Mirror currentStimulus into a ref so the keydown listener (attached once)
@@ -170,6 +171,17 @@ export function useInputHandler(
     onReactionRef.current = onReaction;
   }, [onReaction]);
 
+  /**
+   * Mirror currentRoundIndex so the once-attached keydown listener reads
+   * the latest value without re-attaching. Required because the listener
+   * attaches once per mount (empty dep array); without mirror, listener
+   * would see initial round index forever.
+   */
+  const currentRoundIndexRef = useRef(currentRoundIndex);
+  useLayoutEffect(() => {
+    currentRoundIndexRef.current = currentRoundIndex;
+  }, [currentRoundIndex]);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       // Step 1: Filter to arrow keys only. Non-arrow keys (Space, Enter,
@@ -222,6 +234,7 @@ export function useInputHandler(
         stimulusId: stimulus.id,
         classification,
         reactionTimeMs: inputAtMs - stimulus.appearedAtMs,
+        roundIndex: currentRoundIndexRef.current,
       };
       onReactionRef.current?.(reaction);
     }

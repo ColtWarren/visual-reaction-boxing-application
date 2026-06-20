@@ -1,49 +1,54 @@
-import { useCallback, useReducer } from 'react';
-
+import { useReducer, useCallback } from 'react';
 import type { ReactionResult } from '../types/reaction';
+import type { SessionConfig } from '../types/round';
+import { DEFAULT_SESSION_CONFIG } from '../lib/sessionConfig';
 
-// Session lifecycle states
-export type SessionStatus = 'idle' | 'running' | 'summary';
+// Session lifecycle states — expanded status union
+export type SessionStatus = 'idle' | 'running' | 'rest' | 'summary';
 
-// Cue modality modes
 export type CueMode = 'visual' | 'audio' | 'combined';
 
-// Internal state shape
 interface SessionStateValue {
   status: SessionStatus;
   mode: CueMode;
   results: ReactionResult[];
+  config: SessionConfig;
+  currentRoundIndex: number;        // 0-based; valid when status is 'running' or 'rest'
+  phaseStartedAtMs: number | null;  // performance.now() timestamp; null when idle/summary
 }
 
-// Discriminated union of all possible session state actions
-type SessionAction =
-  | { type: 'setMode'; mode: CueMode }
-  | { type: 'start' }
-  | { type: 'stop' }
-  | { type: 'dismissSummary' }
-  | { type: 'recordReaction'; result: ReactionResult };
-
-// Default mode on app mount (R48 + R49 locked: no persistence)
 const DEFAULT_MODE: CueMode = 'visual';
 
 const INITIAL_STATE: SessionStateValue = {
   status: 'idle',
   mode: DEFAULT_MODE,
   results: [],
+  config: DEFAULT_SESSION_CONFIG,
+  currentRoundIndex: 0,
+  phaseStartedAtMs: null,
 };
+
+// Action names clarify system-driven semantics for timer expirations
+type SessionAction =
+  | { type: 'setMode'; mode: CueMode }
+  | { type: 'setConfig'; config: Partial<SessionConfig> }
+  | { type: 'start' }
+  | { type: 'roundTimerExpired' }
+  | { type: 'restTimerExpired' }
+  | { type: 'stop' }
+  | { type: 'dismissSummary' }
+  | { type: 'recordReaction'; result: ReactionResult };
 
 /**
  * Pure reducer for session state transitions.
- * - setMode: only valid in 'idle' state (defensive invariant; naturally
- *   blocks during 'summary' since summary !== 'idle')
- * - start: idle → running; clears results
- * - stop: running → 'summary' if any results else 'idle' (R57 zero-input
- *   rule; R58 Refinement B guards non-running stops)
- * - dismissSummary: summary → idle (results left dormant until next start)
- * - recordReaction: append result only when running
  *
- * Mode PERSISTS across all transitions per R48 unanimous decision.
- * Strict Mode safe (pure function; no side effects).
+ * State machine graph:
+ *   idle -> running -> rest -> running (next) -> rest -> ... -> summary
+ *
+ *   stop: valid from running, rest; rejected from idle, summary
+ *   dismissSummary: summary -> idle
+ *
+ * Strict Mode safe; pure; no timers; no side effects.
  */
 function sessionReducer(
   state: SessionStateValue,
@@ -51,89 +56,124 @@ function sessionReducer(
 ): SessionStateValue {
   switch (action.type) {
     case 'setMode':
-      // Defensive: ignore mode changes while running.
-      // UI prevents this (mode buttons hidden during running view),
-      // but reducer enforces the invariant regardless of caller correctness.
+      // Mode only changes in idle (defensive invariant)
       return state.status === 'idle'
         ? { ...state, mode: action.mode }
         : state;
+
+    case 'setConfig':
+      // Config locked at session start; only mutable in idle
+      return state.status === 'idle'
+        ? { ...state, config: { ...state.config, ...action.config } }
+        : state;
+
     case 'start':
-      // Clears results — the only mutation point besides recordReaction's append.
-      return { ...state, status: 'running', results: [] };
-    case 'stop':
-      // R58 Refinement B: guard against stop from non-running, which would
-      // otherwise re-open summary from idle or re-route summary → idle.
+      return {
+        ...state,
+        status: 'running',
+        results: [],
+        currentRoundIndex: 0,
+        phaseStartedAtMs: performance.now(),
+      };
+
+    case 'roundTimerExpired':
+      // Dispatched by useRoundTimer when round phase duration elapses
       if (state.status !== 'running') return state;
-      // R57 zero-input rule: results.length > 0 → 'summary'; else → 'idle'.
-      // Mode persists (R48 unanimous); only resets to DEFAULT_MODE on remount.
+      // R63 lock 5: rounds = 1 OR final round → summary (skip rest)
+      if (state.currentRoundIndex >= state.config.totalRounds - 1) {
+        return {
+          ...state,
+          status: 'summary',
+          phaseStartedAtMs: null,
+        };
+      }
+      // Multi-round case with remaining rounds: enter rest
+      return {
+        ...state,
+        status: 'rest',
+        phaseStartedAtMs: performance.now(),
+      };
+
+    case 'restTimerExpired':
+      // Dispatched by useRoundTimer when rest phase elapses (or flash duration for rest=0)
+      if (state.status !== 'rest') return state;
+      return {
+        ...state,
+        status: 'running',
+        currentRoundIndex: state.currentRoundIndex + 1,
+        phaseStartedAtMs: performance.now(),
+      };
+
+    case 'stop':
+      // R58 Refinement B EXPANDED: valid from running or rest
+      if (state.status === 'idle' || state.status === 'summary') return state;
+      // Zero-input rule preserved
       return {
         ...state,
         status: state.results.length > 0 ? 'summary' : 'idle',
+        phaseStartedAtMs: null,
       };
+
     case 'dismissSummary':
-      // Results left dormant until next 'start' replaces them.
-      return { ...state, status: 'idle' };
+      return {
+        ...state,
+        status: 'idle',
+        phaseStartedAtMs: null,
+      };
+
     case 'recordReaction':
-      // Append only when running; late dispatches silently dropped.
+      // Append only when running (not during rest, idle, or summary)
       return state.status === 'running'
         ? { ...state, results: [...state.results, action.result] }
         : state;
   }
 }
 
-// Hook return shape (public API)
 export interface SessionState {
   status: SessionStatus;
   mode: CueMode;
   results: ReactionResult[];
+  config: SessionConfig;
+  currentRoundIndex: number;
+  phaseStartedAtMs: number | null;
   setMode: (mode: CueMode) => void;
+  setConfig: (config: Partial<SessionConfig>) => void;
   startSession: () => void;
   stopSession: () => void;
   dismissSummary: () => void;
   recordReaction: (result: ReactionResult) => void;
+  /** Dispatches `roundTimerExpired`; called by useRoundTimer when round phase elapses. */
+  completeRound: () => void;
+  /** Dispatches `restTimerExpired`; called by useRoundTimer when rest phase elapses. */
+  completeRest: () => void;
 }
 
-/**
- * Custom hook owning session lifecycle state.
- *
- * Uses useReducer for pure state transitions (Strict Mode safe).
- * Action dispatchers wrapped in useCallback for referential stability.
- *
- * Mode persistence semantics:
- * - Mode preserved across session stop/start within same app mount
- * - Mode resets to DEFAULT_MODE ('visual') only on app remount/refresh
- * - No localStorage persistence
- */
 export function useSessionState(): SessionState {
   const [state, dispatch] = useReducer(sessionReducer, INITIAL_STATE);
 
-  const setMode = useCallback(
-    (mode: CueMode) => dispatch({ type: 'setMode', mode }),
-    [],
-  );
-
+  const setMode = useCallback((mode: CueMode) => dispatch({ type: 'setMode', mode }), []);
+  const setConfig = useCallback((config: Partial<SessionConfig>) => dispatch({ type: 'setConfig', config }), []);
   const startSession = useCallback(() => dispatch({ type: 'start' }), []);
-
   const stopSession = useCallback(() => dispatch({ type: 'stop' }), []);
-
-  const dismissSummary = useCallback(
-    () => dispatch({ type: 'dismissSummary' }),
-    [],
-  );
-
-  const recordReaction = useCallback(
-    (result: ReactionResult) => dispatch({ type: 'recordReaction', result }),
-    [],
-  );
+  const dismissSummary = useCallback(() => dispatch({ type: 'dismissSummary' }), []);
+  const recordReaction = useCallback((result: ReactionResult) => dispatch({ type: 'recordReaction', result }), []);
+  const completeRound = useCallback(() => dispatch({ type: 'roundTimerExpired' }), []);
+  const completeRest = useCallback(() => dispatch({ type: 'restTimerExpired' }), []);
 
   return {
     status: state.status,
     mode: state.mode,
     results: state.results,
+    config: state.config,
+    currentRoundIndex: state.currentRoundIndex,
+    phaseStartedAtMs: state.phaseStartedAtMs,
     setMode,
+    setConfig,
     startSession,
     stopSession,
     dismissSummary,
     recordReaction,
+    completeRound,
+    completeRest,
   };
 }
