@@ -1,7 +1,9 @@
 import { useReducer, useCallback } from 'react';
 import type { ReactionResult } from '../types/reaction';
 import type { SessionConfig } from '../types/round';
-import { DEFAULT_SESSION_CONFIG } from '../lib/sessionConfig';
+import type { PresetId } from '../types/preferences';
+import { PRESET_TO_CONFIG } from '../lib/sessionConfig';
+import { loadPreferences } from '../lib/preferencesStorage';
 
 // Session lifecycle states — expanded status union
 export type SessionStatus = 'idle' | 'running' | 'rest' | 'summary';
@@ -11,6 +13,7 @@ export type CueMode = 'visual' | 'audio' | 'combined';
 interface SessionStateValue {
   status: SessionStatus;
   mode: CueMode;
+  selectedPresetId: PresetId;       // Step 12 (Lock 5); independent of mode
   results: ReactionResult[];
   config: SessionConfig;
   currentRoundIndex: number;        // 0-based; valid when status is 'running' or 'rest'
@@ -19,18 +22,39 @@ interface SessionStateValue {
 
 const DEFAULT_MODE: CueMode = 'visual';
 
+// First-launch state (empty localStorage): Quick Demo on-ramp per Lock 7.
 const INITIAL_STATE: SessionStateValue = {
   status: 'idle',
   mode: DEFAULT_MODE,
+  selectedPresetId: 'quick-demo',
   results: [],
-  config: DEFAULT_SESSION_CONFIG,
+  config: PRESET_TO_CONFIG['quick-demo'],
   currentRoundIndex: 0,
   phaseStartedAtMs: null,
 };
 
+/**
+ * Lazy reducer initializer (runs ONCE on mount, R71.5 P2). Hydrates from
+ * persisted preferences when present; otherwise falls back to first-launch
+ * defaults. Config is already preset-normalized by loadPreferences (Lock 5).
+ */
+function buildInitialState(): SessionStateValue {
+  const persisted = loadPreferences();
+  if (persisted) {
+    return {
+      ...INITIAL_STATE,
+      mode: persisted.mode,
+      selectedPresetId: persisted.selectedPresetId,
+      config: persisted.config,
+    };
+  }
+  return INITIAL_STATE;
+}
+
 // Action names clarify system-driven semantics for timer expirations
 type SessionAction =
   | { type: 'setMode'; mode: CueMode }
+  | { type: 'selectPreset'; presetId: PresetId }
   | { type: 'setConfig'; config: Partial<SessionConfig> }
   | { type: 'start' }
   | { type: 'roundTimerExpired' }
@@ -61,10 +85,28 @@ function sessionReducer(
         ? { ...state, mode: action.mode }
         : state;
 
+    case 'selectPreset':
+      // Preset selection only in idle. Mode is independent (Lock 5): selecting
+      // a preset never changes mode. Non-Custom presets atomically overwrite
+      // config with canonical values; Custom keeps the current config.
+      if (state.status !== 'idle') return state;
+      return action.presetId === 'custom'
+        ? { ...state, selectedPresetId: 'custom' }
+        : {
+            ...state,
+            selectedPresetId: action.presetId,
+            config: PRESET_TO_CONFIG[action.presetId],
+          };
+
     case 'setConfig':
-      // Config locked at session start; only mutable in idle
+      // Config locked at session start; only mutable in idle. Editing config
+      // auto-switches the preset to Custom (Lock 5). Mode is independent.
       return state.status === 'idle'
-        ? { ...state, config: { ...state.config, ...action.config } }
+        ? {
+            ...state,
+            selectedPresetId: 'custom',
+            config: { ...state.config, ...action.config },
+          }
         : state;
 
     case 'start':
@@ -132,11 +174,13 @@ function sessionReducer(
 export interface SessionState {
   status: SessionStatus;
   mode: CueMode;
+  selectedPresetId: PresetId;
   results: ReactionResult[];
   config: SessionConfig;
   currentRoundIndex: number;
   phaseStartedAtMs: number | null;
   setMode: (mode: CueMode) => void;
+  selectPreset: (presetId: PresetId) => void;
   setConfig: (config: Partial<SessionConfig>) => void;
   startSession: () => void;
   stopSession: () => void;
@@ -149,9 +193,14 @@ export interface SessionState {
 }
 
 export function useSessionState(): SessionState {
-  const [state, dispatch] = useReducer(sessionReducer, INITIAL_STATE);
+  // Lazy three-argument form (R71.5 P2): buildInitialState runs ONCE on mount,
+  // so loadPreferences (localStorage read) does not run on every render.
+  const [state, dispatch] = useReducer(sessionReducer, null, () =>
+    buildInitialState(),
+  );
 
   const setMode = useCallback((mode: CueMode) => dispatch({ type: 'setMode', mode }), []);
+  const selectPreset = useCallback((presetId: PresetId) => dispatch({ type: 'selectPreset', presetId }), []);
   const setConfig = useCallback((config: Partial<SessionConfig>) => dispatch({ type: 'setConfig', config }), []);
   const startSession = useCallback(() => dispatch({ type: 'start' }), []);
   const stopSession = useCallback(() => dispatch({ type: 'stop' }), []);
@@ -163,11 +212,13 @@ export function useSessionState(): SessionState {
   return {
     status: state.status,
     mode: state.mode,
+    selectedPresetId: state.selectedPresetId,
     results: state.results,
     config: state.config,
     currentRoundIndex: state.currentRoundIndex,
     phaseStartedAtMs: state.phaseStartedAtMs,
     setMode,
+    selectPreset,
     setConfig,
     startSession,
     stopSession,

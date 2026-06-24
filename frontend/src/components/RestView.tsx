@@ -25,11 +25,21 @@ function formatCountdown(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// Matches RunningView's translucent Stop button (consistent across active screens).
+// Matches RunningView's translucent Stop button (consistent across active
+// screens), including the z-30 isolation layer (Step 12). RestView renders no
+// touch zones, so the stopPropagation below is purely belt-and-suspenders for
+// consistency with RunningView (MC3); z-30 keeps the same stacking contract.
 const STOP_BUTTON_CLASS =
-  'fixed bottom-6 right-6 px-8 py-3 text-sm ' +
+  'fixed z-30 px-8 py-3 text-sm ' +
   'bg-white/20 hover:bg-white/30 text-white/80 hover:text-white ' +
   'border border-white/20 rounded-md backdrop-blur-sm transition-colors';
+
+// Additive safe-area positioning (Step 12, Lock 10), matching RunningView's
+// Stop. bottom-6/right-6 base (1.5rem) + inset; collapses to 1.5rem off-notch.
+const STOP_BUTTON_STYLE = {
+  bottom: 'calc(1.5rem + var(--safe-bottom))',
+  right: 'calc(1.5rem + var(--safe-right))',
+};
 
 export function RestView({
   currentRoundIndex,
@@ -57,7 +67,12 @@ export function RestView({
         <div className="text-sm uppercase tracking-widest text-zinc-400">
           starting
         </div>
-        <button onClick={onStop} className={STOP_BUTTON_CLASS}>
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onStop}
+          style={STOP_BUTTON_STYLE}
+          className={STOP_BUTTON_CLASS}
+        >
           Stop
         </button>
       </div>
@@ -133,7 +148,12 @@ export function RestView({
         </div>
       )}
 
-      <button onClick={onStop} className={STOP_BUTTON_CLASS}>
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onStop}
+        style={STOP_BUTTON_STYLE}
+        className={STOP_BUTTON_CLASS}
+      >
         Stop
       </button>
     </div>

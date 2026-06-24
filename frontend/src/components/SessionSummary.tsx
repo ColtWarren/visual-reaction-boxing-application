@@ -36,7 +36,15 @@ export function SessionSummary({ results, totalRounds, onDismiss }: SessionSumma
     sessionStats.correctCount + sessionStats.incorrectCount + sessionStats.missCount;
 
   return (
-    <div className="flex min-h-dvh flex-col items-center overflow-y-auto p-8 text-zinc-100">
+    <div
+      className="flex min-h-dvh flex-col items-center overflow-y-auto text-zinc-100"
+      style={{
+        paddingTop: 'calc(2rem + var(--safe-top))',
+        paddingRight: 'calc(2rem + var(--safe-right))',
+        paddingBottom: 'calc(2rem + var(--safe-bottom))',
+        paddingLeft: 'calc(2rem + var(--safe-left))',
+      }}
+    >
       <h1 className="mb-8 text-3xl font-bold">Session Complete</h1>
 
       <div className="mb-10 grid grid-cols-2 gap-x-12 gap-y-4 text-lg">

@@ -1,6 +1,7 @@
 import { useSessionState } from './hooks/useSessionState';
+import { usePreferencesPersistence } from './hooks/usePreferencesPersistence';
 import { useStimulusEngine } from './hooks/useStimulusEngine';
-import { useInputHandler } from './hooks/useInputHandler';
+import { useReactionInput } from './hooks/useReactionInput';
 import { useAudioCueRenderer } from './hooks/useAudioCueRenderer';
 import { useRoundTimer } from './hooks/useRoundTimer';
 import { useMissDetector } from './hooks/useMissDetector';
@@ -11,6 +12,9 @@ import { SessionSummary } from './components/SessionSummary';
 
 function App() {
   const session = useSessionState();
+
+  // Step 12 (Lock 4): persist preferences across the session lifecycle.
+  usePreferencesPersistence(session);
 
   // Engine cycles whenever session is running (modality-agnostic).
   // The audio cue emitter (Step 10) will be another parallel consumer
@@ -86,7 +90,15 @@ function App() {
   // (R57 Decision 2). The hook fires session.recordReaction synchronously
   // inside the keydown handler after the id-keyed lock seals (R58 Refinement A).
   // Step 11: currentRoundIndex injected so each HitReaction carries round metadata.
-  useInputHandler(stimulusForInput, session.currentRoundIndex, session.recordReaction);
+  // Step 12: unified useReactionInput. Keyboard path is internal (window
+  // listener); submitDefenseInput is the touch entry point, wired into
+  // RunningView's TouchZones below. Both modalities share one classifier and
+  // one R54 lock.
+  const { submitDefenseInput } = useReactionInput(
+    stimulusForInput,
+    session.currentRoundIndex,
+    session.recordReaction,
+  );
 
   // Step 11: miss detection (Anchor 7). Active only while running; the timeout
   // registry survives engine-driven stimulus->null states. Emits MissReaction
@@ -118,8 +130,10 @@ function App() {
       {session.status === 'idle' ? (
         <PreSessionScreen
           mode={session.mode}
+          selectedPresetId={session.selectedPresetId}
           config={session.config}
           onModeChange={session.setMode}
+          onSelectPreset={session.selectPreset}
           onConfigChange={session.setConfig}
           onStart={session.startSession}
         />
@@ -130,6 +144,7 @@ function App() {
           currentRoundIndex={session.currentRoundIndex}
           totalRounds={session.config.totalRounds}
           onStop={session.stopSession}
+          onDefenseInput={submitDefenseInput}
         />
       ) : session.status === 'rest' ? (
         <RestView
