@@ -12,6 +12,30 @@
   --color-cue-gray: #71717a; /* feint / no-go (intentionally muted) */
   --color-cue-purple: #a855f7; /* uppercut (Level 5+) */
   --color-cue-white: #ffffff; /* counter-attack (Level 5+) */
+
+  /* Step 13 semantic surface/text/border tokens (12 total, Block 0b).
+     Added to @theme so Tailwind v4 generates bg-rd-*, text-rd-*, border-rd-*
+     utilities. Not consumed until Block 2+ (introduction is non-breaking). */
+
+  /* Surfaces (4) */
+  --color-rd-bg-base: #09090b; /* zinc-950 */
+  --color-rd-bg-surface: #18181b; /* zinc-900 */
+  --color-rd-bg-elevated: #27272a; /* zinc-800 */
+  --color-rd-bg-overlay: rgba(9, 9, 11, 0.85);
+
+  /* Text (3) */
+  --color-rd-text-primary: #f4f4f5; /* zinc-100 */
+  --color-rd-text-secondary: #a1a1aa; /* zinc-400 */
+  --color-rd-text-muted: #71717a; /* zinc-500 */
+
+  /* Borders (2) */
+  --color-rd-border-subtle: #27272a; /* zinc-800 */
+  --color-rd-border-default: #3f3f46; /* zinc-700 */
+
+  /* Accents (3) */
+  --color-rd-accent-success: #10b981; /* emerald-500, correct */
+  --color-rd-accent-warning: #f59e0b; /* amber-500, incorrect */
+  --color-rd-accent-danger: #ef4444; /* red-500, missed */
 }
 
 /* Fullscreen baseline: no default margins, no horizontal scroll.
@@ -54,4 +78,13 @@ body {
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Step 13 dimension tokens (Block 0b). Consumed via var()/calc() by the
+     shell / top-bar in later blocks. */
+  --rd-sidebar-width: 15rem; /* 240px per Q10 */
+  --rd-drawer-width: 17.5rem; /* 280px per Q1 */
+  --rd-topbar-height: 3rem; /* 48px per A3 */
+  --rd-radius-panel: 1rem;
+  --rd-radius-card: 0.75rem;
+  --rd-radius-pill: 9999px;
 }
