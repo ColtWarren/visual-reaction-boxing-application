@@ -15,6 +15,11 @@ import type { SessionConfig } from '../types/round';
 import type { PersistedPreferencesV1, PresetId } from '../types/preferences';
 import { PRESET_TO_CONFIG } from './sessionConfig';
 
+/**
+ * localStorage key for the persisted preferences envelope. The `.v1` suffix
+ * mirrors `PREFS_VERSION`: a schema bump means a new key + migration, so a v1
+ * build never reads (or clobbers) a future v2 payload, and vice versa.
+ */
 export const PREFS_STORAGE_KEY = 'reaction-defense.preferences.v1';
 export const PREFS_VERSION = 1 as const;
 

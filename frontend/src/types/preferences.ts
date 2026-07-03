@@ -22,8 +22,31 @@ export type PresetId = 'quick-demo' | '3x3-standard' | 'custom';
  * forward compatibility: a mismatch resets to first-launch defaults (Lock 4).
  */
 export interface PersistedPreferencesV1 {
+  /**
+   * Schema version literal. `isValidPreferences` rejects any payload whose
+   * `version` !== `PREFS_VERSION`, so a mismatch resolves to first-launch
+   * defaults (Lock 4). Bump this (and add a migration) when the shape changes.
+   */
   version: 1;
+
+  /**
+   * Cue delivery mode the user last selected — 'visual' | 'audio' | 'combined'
+   * (see `CueMode`). Restored on next launch.
+   */
   mode: CueMode;
+
+  /**
+   * Which workout preset is active. `custom` preserves the user-edited
+   * `config`; for named presets, `loadPreferences` re-normalizes `config` from
+   * `PRESET_TO_CONFIG` on read, so a named preset can never surface off-spec
+   * durations (Lock 5).
+   */
   selectedPresetId: PresetId;
+
+  /**
+   * Resolved session config (round/rest durations, total rounds). Persisted so
+   * Custom edits survive reload; overwritten by the canonical preset config on
+   * load for any non-`custom` preset.
+   */
   config: SessionConfig;
 }
