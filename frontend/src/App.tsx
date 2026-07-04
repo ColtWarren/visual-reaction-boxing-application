@@ -1,3 +1,4 @@
+import { Route, Switch, useLocation, Redirect } from 'wouter';
 import { useSessionState } from './hooks/useSessionState';
 import { usePreferencesPersistence } from './hooks/usePreferencesPersistence';
 import { useStimulusEngine } from './hooks/useStimulusEngine';
@@ -9,8 +10,13 @@ import { PreSessionScreen } from './components/PreSessionScreen';
 import { RunningView } from './components/RunningView';
 import { RestView } from './components/RestView';
 import { SessionSummary } from './components/SessionSummary';
+import { SettingsView } from './views/SettingsView';
+import { AboutView } from './views/AboutView';
 
-function App() {
+// AppContent holds all session hook wiring AND consumes router context
+// (useLocation). It must render UNDER the router provider — for ROUTING_MODE=path
+// (Block 0a) Wouter's implicit router suffices, so App just delegates here.
+function AppContent() {
   const session = useSessionState();
 
   // Step 12 (Lock 4): persist preferences across the session lifecycle.
@@ -125,45 +131,97 @@ function App() {
     onCompleteRest: session.completeRest,
   });
 
+  const [, navigate] = useLocation();
+
+  // Normalize the route to / before starting a session (replace, not push, so
+  // browser Back doesn't return to a pre-session route entry). Wraps the Step 12
+  // start dispatch, which is otherwise unchanged.
+  const handleStart = () => {
+    navigate('/', { replace: true });
+    session.startSession();
+  };
+
+  // Session-state precedence (invariant): while running or resting, the session
+  // surface renders fullscreen regardless of route. The <main> wrapper is
+  // load-bearing (full-bleed sizing + positioning surface for absolute
+  // TouchZones/Cue) and is preserved in BOTH branches (see Step 12). bg-rd-bg-base
+  // is Block 0b's token for zinc-950 (#09090b) — a rename, not a color change.
+  const isSessionActive =
+    session.status === 'running' || session.status === 'rest';
+
+  if (isSessionActive) {
+    return (
+      <main className="relative min-h-dvh w-full bg-rd-bg-base">
+        {session.status === 'running' && (
+          <RunningView
+            mode={session.mode}
+            stimulus={isVisualStimulusActive ? stimulus : null}
+            currentRoundIndex={session.currentRoundIndex}
+            totalRounds={session.config.totalRounds}
+            onStop={session.stopSession}
+            onDefenseInput={submitDefenseInput}
+          />
+        )}
+        {session.status === 'rest' && (
+          <RestView
+            currentRoundIndex={session.currentRoundIndex}
+            totalRounds={session.config.totalRounds}
+            restDurationMs={session.config.restDurationMs}
+            restRemainingMs={remainingMs}
+            results={session.results}
+            onStop={session.stopSession}
+          />
+        )}
+      </main>
+    );
+  }
+
+  // Idle and summary states share the workout (/) route surface. Leaf routes
+  // (/settings, /about) are additive placeholders (Blocks 8/9). The trailing
+  // catch-all redirects unknown paths to / — Wouter renders only the first
+  // match, so without it an unsupported path would render blank.
   return (
-    <main className="relative min-h-dvh w-full bg-zinc-950">
-      {session.status === 'idle' ? (
-        <PreSessionScreen
-          mode={session.mode}
-          selectedPresetId={session.selectedPresetId}
-          config={session.config}
-          onModeChange={session.setMode}
-          onSelectPreset={session.selectPreset}
-          onConfigChange={session.setConfig}
-          onStart={session.startSession}
-        />
-      ) : session.status === 'running' ? (
-        <RunningView
-          mode={session.mode}
-          stimulus={isVisualStimulusActive ? stimulus : null}
-          currentRoundIndex={session.currentRoundIndex}
-          totalRounds={session.config.totalRounds}
-          onStop={session.stopSession}
-          onDefenseInput={submitDefenseInput}
-        />
-      ) : session.status === 'rest' ? (
-        <RestView
-          currentRoundIndex={session.currentRoundIndex}
-          totalRounds={session.config.totalRounds}
-          restDurationMs={session.config.restDurationMs}
-          restRemainingMs={remainingMs}
-          results={session.results}
-          onStop={session.stopSession}
-        />
-      ) : (
-        <SessionSummary
-          results={session.results}
-          totalRounds={session.config.totalRounds}
-          onDismiss={session.dismissSummary}
-        />
-      )}
+    <main className="relative min-h-dvh w-full bg-rd-bg-base">
+      <Switch>
+        <Route path="/settings">
+          <SettingsView />
+        </Route>
+        <Route path="/about">
+          <AboutView />
+        </Route>
+        <Route path="/">
+          {session.status === 'idle' && (
+            <PreSessionScreen
+              mode={session.mode}
+              selectedPresetId={session.selectedPresetId}
+              config={session.config}
+              onModeChange={session.setMode}
+              onSelectPreset={session.selectPreset}
+              onConfigChange={session.setConfig}
+              onStart={handleStart}
+            />
+          )}
+          {session.status === 'summary' && (
+            <SessionSummary
+              results={session.results}
+              totalRounds={session.config.totalRounds}
+              onDismiss={session.dismissSummary}
+            />
+          )}
+        </Route>
+        <Route>
+          <Redirect to="/" replace />
+        </Route>
+      </Switch>
     </main>
   );
+}
+
+// App: router-provider boundary. ROUTING_MODE=path (Block 0a) uses Wouter's
+// implicit router, so no <Router> wrapper is needed — AppContent renders the
+// session hooks and router consumers one level below this delegating shell.
+function App() {
+  return <AppContent />;
 }
 
 export default App;
