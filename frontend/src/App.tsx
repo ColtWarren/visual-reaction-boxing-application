@@ -12,6 +12,7 @@ import { RestView } from './components/RestView';
 import { SessionSummary } from './components/SessionSummary';
 import { SettingsView } from './views/SettingsView';
 import { AboutView } from './views/AboutView';
+import { AppShell } from './components/AppShell';
 
 // AppContent holds all session hook wiring AND consumes router context
 // (useLocation). It must render UNDER the router provider — for ROUTING_MODE=path
@@ -176,12 +177,14 @@ function AppContent() {
     );
   }
 
-  // Idle and summary states share the workout (/) route surface. Leaf routes
+  // Idle and summary states share the workout (/) route surface, wrapped in the
+  // persistent AppShell (desktop sidebar + content area). Leaf routes
   // (/settings, /about) are additive placeholders (Blocks 8/9). The trailing
   // catch-all redirects unknown paths to / — Wouter renders only the first
-  // match, so without it an unsupported path would render blank.
+  // match, so without it an unsupported path would render blank. The
+  // session-active branch above intentionally bypasses AppShell (fullscreen).
   return (
-    <main className="relative min-h-dvh w-full bg-rd-bg-base">
+    <AppShell>
       <Switch>
         <Route path="/settings">
           <SettingsView />
@@ -213,7 +216,7 @@ function AppContent() {
           <Redirect to="/" replace />
         </Route>
       </Switch>
-    </main>
+    </AppShell>
   );
 }
 
