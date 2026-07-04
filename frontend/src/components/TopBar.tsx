@@ -40,7 +40,9 @@ export function TopBar({ currentRound, totalRounds, onStop, layout }: TopBarProp
             data-testid="top-bar-round-chip"
             className="pointer-events-none max-w-full truncate rounded-lg border border-rd-border-subtle bg-rd-bg-elevated/80 px-3 py-1.5 text-sm font-medium uppercase tracking-wider text-rd-text-secondary backdrop-blur-sm"
           >
-            Round {currentRound}/{totalRounds}
+            {/* Compact "R n/total" so the round number never truncates inside the
+                25vw dead corner on narrow viewports ("ROUND n/total" overflowed). */}
+            R {currentRound}/{totalRounds}
           </div>
         </div>
 
