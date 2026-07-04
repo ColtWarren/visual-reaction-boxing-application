@@ -1,5 +1,6 @@
 import type { ReactionResult } from '../types/reaction';
 import { computeStats } from '../lib/sessionStats';
+import { TopBar } from './TopBar';
 
 interface RestViewProps {
   currentRoundIndex: number;
@@ -25,22 +26,6 @@ function formatCountdown(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// Matches RunningView's translucent Stop button (consistent across active
-// screens), including the z-30 isolation layer (Step 12). RestView renders no
-// touch zones, so the stopPropagation below is purely belt-and-suspenders for
-// consistency with RunningView (MC3); z-30 keeps the same stacking contract.
-const STOP_BUTTON_CLASS =
-  'fixed z-30 px-8 py-3 text-sm ' +
-  'bg-white/20 hover:bg-white/30 text-white/80 hover:text-white ' +
-  'border border-white/20 rounded-md backdrop-blur-sm transition-colors';
-
-// Additive safe-area positioning (Step 12, Lock 10), matching RunningView's
-// Stop. bottom-6/right-6 base (1.5rem) + inset; collapses to 1.5rem off-notch.
-const STOP_BUTTON_STYLE = {
-  bottom: 'calc(1.5rem + var(--safe-bottom))',
-  right: 'calc(1.5rem + var(--safe-right))',
-};
-
 export function RestView({
   currentRoundIndex,
   totalRounds,
@@ -60,102 +45,123 @@ export function RestView({
   // Rest = 0: 1-second "Round N starting" flash, no countdown UI (R63 lock 4).
   if (restDurationMs === 0) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-zinc-100">
-        <div className="text-3xl uppercase tracking-widest">
-          Round {currentRoundIndex + 2} of {totalRounds}
-        </div>
-        <div className="text-sm uppercase tracking-widest text-zinc-400">
-          starting
-        </div>
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onStop}
-          style={STOP_BUTTON_STYLE}
-          className={STOP_BUTTON_CLASS}
+      <div className="flex min-h-dvh w-full flex-col text-zinc-100">
+        <TopBar
+          currentRound={currentRoundIndex + 1}
+          totalRounds={totalRounds}
+          onStop={onStop}
+          layout="flow"
+        />
+        {/* rest=0 flash was previously unpadded — safe-area insets only (audit
+            A.7). TopBar owns the top inset; padding stays on this content
+            wrapper so the TopBar's 25vw grid stays flush to the viewport. */}
+        <div
+          className="flex flex-1 flex-col items-center justify-center gap-3"
+          style={{
+            paddingRight: 'var(--safe-right)',
+            paddingBottom: 'var(--safe-bottom)',
+            paddingLeft: 'var(--safe-left)',
+          }}
         >
-          Stop
-        </button>
+          <div className="text-3xl uppercase tracking-widest">
+            Round {currentRoundIndex + 2} of {totalRounds}
+          </div>
+          <div className="text-sm uppercase tracking-widest text-zinc-400">
+            starting
+          </div>
+        </div>
       </div>
     );
   }
 
   // Standard rest — compact stacked layout (countdown / round / session).
   return (
-    <div className="flex min-h-dvh flex-col items-center p-8 text-zinc-100">
-      {/* Countdown header */}
-      <div className="mb-8 text-center">
-        <div className="text-sm uppercase tracking-widest text-zinc-400">Rest</div>
-        <div className="mt-1 text-2xl">
-          Next Round: {currentRoundIndex + 2} / {totalRounds}
+    <div className="flex min-h-dvh w-full flex-col text-zinc-100">
+      <TopBar
+        currentRound={currentRoundIndex + 1}
+        totalRounds={totalRounds}
+        onStop={onStop}
+        layout="flow"
+      />
+      {/* Base p-8 (2rem) migrated to calc() safe-area padding (audit A.7). TopBar
+          owns the top inset, so the top keeps its 2rem breathing room only; the
+          padding lives on this content wrapper so the TopBar's 25vw grid stays
+          flush to the viewport edges. */}
+      <div
+        className="flex flex-1 flex-col items-center"
+        style={{
+          paddingTop: '2rem',
+          paddingRight: 'calc(2rem + var(--safe-right))',
+          paddingBottom: 'calc(2rem + var(--safe-bottom))',
+          paddingLeft: 'calc(2rem + var(--safe-left))',
+        }}
+      >
+        {/* Countdown header */}
+        <div className="mb-8 text-center">
+          <div className="text-sm uppercase tracking-widest text-zinc-400">Rest</div>
+          <div className="mt-1 text-2xl">
+            Next Round: {currentRoundIndex + 2} / {totalRounds}
+          </div>
+          <div className="mt-3 text-5xl tabular-nums">
+            {formatCountdown(restRemainingMs)}
+          </div>
         </div>
-        <div className="mt-3 text-5xl tabular-nums">
-          {formatCountdown(restRemainingMs)}
-        </div>
-      </div>
 
-      {/* Just-finished round stats */}
-      <div className="mb-6 w-full max-w-sm">
-        <div className="mb-2 text-sm uppercase tracking-wide text-zinc-400">
-          Round {currentRoundIndex + 1}
-        </div>
-        <div className="space-y-1 text-sm">
-          <div>
-            Accuracy:{' '}
-            <span className="tabular-nums">{justFinishedStats.accuracy.toFixed(0)}%</span>
-          </div>
-          <div>
-            Average RT:{' '}
-            <span className="tabular-nums">{formatMs(justFinishedStats.avgRtMs)}</span>
-          </div>
-          <div>
-            Best RT:{' '}
-            <span className="tabular-nums">{formatMs(justFinishedStats.bestRtMs)}</span>
-          </div>
-          <div>
-            Correct / Incorrect / Missed:{' '}
-            <span className="tabular-nums">
-              {justFinishedStats.correctCount} / {justFinishedStats.incorrectCount} /{' '}
-              {justFinishedStats.missCount}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Session so far — hidden during the first rest (currentRoundIndex === 0),
-          where it would be identical to the round-1 summary by definition. */}
-      {currentRoundIndex > 0 && (
-        <div className="w-full max-w-sm">
+        {/* Just-finished round stats */}
+        <div className="mb-6 w-full max-w-sm">
           <div className="mb-2 text-sm uppercase tracking-wide text-zinc-400">
-            Session So Far
+            Round {currentRoundIndex + 1}
           </div>
           <div className="space-y-1 text-sm">
             <div>
               Accuracy:{' '}
-              <span className="tabular-nums">{sessionStats.accuracy.toFixed(0)}%</span>
+              <span className="tabular-nums">{justFinishedStats.accuracy.toFixed(0)}%</span>
             </div>
             <div>
               Average RT:{' '}
-              <span className="tabular-nums">{formatMs(sessionStats.avgRtMs)}</span>
+              <span className="tabular-nums">{formatMs(justFinishedStats.avgRtMs)}</span>
+            </div>
+            <div>
+              Best RT:{' '}
+              <span className="tabular-nums">{formatMs(justFinishedStats.bestRtMs)}</span>
             </div>
             <div>
               Correct / Incorrect / Missed:{' '}
               <span className="tabular-nums">
-                {sessionStats.correctCount} / {sessionStats.incorrectCount} /{' '}
-                {sessionStats.missCount}
+                {justFinishedStats.correctCount} / {justFinishedStats.incorrectCount} /{' '}
+                {justFinishedStats.missCount}
               </span>
             </div>
           </div>
         </div>
-      )}
 
-      <button
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={onStop}
-        style={STOP_BUTTON_STYLE}
-        className={STOP_BUTTON_CLASS}
-      >
-        Stop
-      </button>
+        {/* Session so far — hidden during the first rest (currentRoundIndex === 0),
+            where it would be identical to the round-1 summary by definition. */}
+        {currentRoundIndex > 0 && (
+          <div className="w-full max-w-sm">
+            <div className="mb-2 text-sm uppercase tracking-wide text-zinc-400">
+              Session So Far
+            </div>
+            <div className="space-y-1 text-sm">
+              <div>
+                Accuracy:{' '}
+                <span className="tabular-nums">{sessionStats.accuracy.toFixed(0)}%</span>
+              </div>
+              <div>
+                Average RT:{' '}
+                <span className="tabular-nums">{formatMs(sessionStats.avgRtMs)}</span>
+              </div>
+              <div>
+                Correct / Incorrect / Missed:{' '}
+                <span className="tabular-nums">
+                  {sessionStats.correctCount} / {sessionStats.incorrectCount} /{' '}
+                  {sessionStats.missCount}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
