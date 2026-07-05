@@ -4,7 +4,7 @@
  * Step 9 shape: { stimulusId, classification, reactionTimeMs }
  * Step 10 shape: { result: 'hit' | 'miss' | 'correct-ignore', ... }
  *
- * Step 10 producer (useInputHandler) emits ONLY the 'hit' variant. The 'miss'
+ * Step 10's producer emits ONLY the 'hit' variant. The 'miss'
  * variant will be produced by Step 11's miss detection logic (cue expired
  * without input). The 'correct-ignore' variant will be produced when decoy
  * mechanics land (Theme 2). The data shape is honest from Step 10 forward —

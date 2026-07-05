@@ -1,16 +1,16 @@
 /**
  * useReactionInput — unified reaction input across keyboard and touch (Step 12).
  *
- * Replaces useInputHandler as the consumer-facing hook (Lock 2). The keyboard
- * implementation is moved verbatim from useInputHandler.ts (mechanical move,
- * R71.5 P4) — same guard order, same refs, same R44A/R54/R58 invariants — and
+ * The consumer-facing input hook (Lock 2). The keyboard implementation was
+ * moved here verbatim in Step 12 (mechanical move, R71.5 P4) — same guard
+ * order, same refs, same R44A/R54/R58 invariants — and
  * the classification core is factored into one internal function so a second
  * modality can share it. Touch/pointer input calls that same core through the
  * returned `submitDefenseInput` callback; keyboard input calls it from the
  * once-attached window keydown listener. ONE classifier, ONE R54 lock, ONE
  * source of truth across modalities.
  *
- * Keyboard semantics (preserved from useInputHandler):
+ * Keyboard semantics (unchanged since Step 6):
  *   Step 6: listens for arrow keys, classifies presses 'correct'/'incorrect'
  *           against the current stimulus. Step 8 (R54): per-cue lock keyed on
  *           stimulus.id. Step 9: reactionTimeMs = inputAtMs - appearedAtMs.
