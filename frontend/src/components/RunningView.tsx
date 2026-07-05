@@ -57,16 +57,16 @@ export function RunningView({
         />
       )}
 
-      {/* Audio mode activity indicator (R49 Q5 revision). The text-gray-400 here
-          is left for Block 10's palette sweep — it is the audio placeholder, not
-          the round counter (which moved to TopBar). */}
+      {/* Audio mode activity indicator (R49 Q5 revision). The text-zinc-400 here
+          is the audio-mode placeholder, not the round counter — which moved to
+          TopBar in Block 6. */}
       {showAudioPlaceholder && (
         <div className="flex items-center justify-center min-h-dvh gap-3">
           <span
             className="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"
             aria-hidden="true"
           />
-          <div className="text-gray-400 text-lg uppercase tracking-widest">
+          <div className="text-zinc-400 text-lg uppercase tracking-widest">
             Audio Mode — Active
           </div>
         </div>
