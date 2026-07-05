@@ -21,7 +21,8 @@ function AppContent() {
   const session = useSessionState();
 
   // Step 12 (Lock 4): persist preferences across the session lifecycle.
-  usePreferencesPersistence(session);
+  // Step 13 (Block 8): also exposes the reset controller for SettingsView.
+  const { resetPreferences } = usePreferencesPersistence(session);
 
   // Engine cycles whenever session is running (modality-agnostic).
   // The audio cue emitter (Step 10) will be another parallel consumer
@@ -187,7 +188,7 @@ function AppContent() {
     <AppShell>
       <Switch>
         <Route path="/settings">
-          <SettingsView />
+          <SettingsView onReset={resetPreferences} />
         </Route>
         <Route path="/about">
           <AboutView />

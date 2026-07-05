@@ -22,33 +22,42 @@ interface SessionStateValue {
 
 const DEFAULT_MODE: CueMode = 'visual';
 
-// First-launch state (empty localStorage): Quick Demo on-ramp per Lock 7.
-const INITIAL_STATE: SessionStateValue = {
-  status: 'idle',
-  mode: DEFAULT_MODE,
-  selectedPresetId: 'quick-demo',
-  results: [],
-  config: PRESET_TO_CONFIG['quick-demo'],
-  currentRoundIndex: 0,
-  phaseStartedAtMs: null,
-};
+/**
+ * Pure first-launch state constructor (Quick Demo on-ramp per Lock 7). No
+ * storage access, so the reducer's `resetPreferences` case can use it and stay
+ * pure (StrictMode double-invocation safe). buildInitialState layers persisted
+ * preferences on top of this base at mount.
+ */
+function createDefaultSessionState(): SessionStateValue {
+  return {
+    status: 'idle',
+    mode: DEFAULT_MODE,
+    selectedPresetId: 'quick-demo',
+    results: [],
+    config: PRESET_TO_CONFIG['quick-demo'],
+    currentRoundIndex: 0,
+    phaseStartedAtMs: null,
+  };
+}
 
 /**
  * Lazy reducer initializer (runs ONCE on mount, R71.5 P2). Hydrates from
  * persisted preferences when present; otherwise falls back to first-launch
  * defaults. Config is already preset-normalized by loadPreferences (Lock 5).
+ * Storage-aware — used ONLY at mount, never inside the reducer.
  */
 function buildInitialState(): SessionStateValue {
+  const base = createDefaultSessionState();
   const persisted = loadPreferences();
   if (persisted) {
     return {
-      ...INITIAL_STATE,
+      ...base,
       mode: persisted.mode,
       selectedPresetId: persisted.selectedPresetId,
       config: persisted.config,
     };
   }
-  return INITIAL_STATE;
+  return base;
 }
 
 // Action names clarify system-driven semantics for timer expirations
@@ -61,7 +70,8 @@ type SessionAction =
   | { type: 'restTimerExpired' }
   | { type: 'stop' }
   | { type: 'dismissSummary' }
-  | { type: 'recordReaction'; result: ReactionResult };
+  | { type: 'recordReaction'; result: ReactionResult }
+  | { type: 'resetPreferences' };
 
 /**
  * Pure reducer for session state transitions.
@@ -168,6 +178,12 @@ function sessionReducer(
       return state.status === 'running'
         ? { ...state, results: [...state.results, action.result] }
         : state;
+
+    case 'resetPreferences':
+      // Restore canonical first-launch defaults. PURE — no localStorage read
+      // here; usePreferencesPersistence owns the storage removal and the
+      // write-suppression around this dispatch.
+      return createDefaultSessionState();
   }
 }
 
@@ -190,6 +206,12 @@ export interface SessionState {
   completeRound: () => void;
   /** Dispatches `restTimerExpired`; called by useRoundTimer when rest phase elapses. */
   completeRest: () => void;
+  /**
+   * Focused reset action (Block 8): dispatches `resetPreferences` to restore
+   * canonical defaults. Exposed instead of raw dispatch so usePreferencesPersistence
+   * can trigger a reset without seeing the reducer internals.
+   */
+  resetPreferences: () => void;
 }
 
 export function useSessionState(): SessionState {
@@ -208,6 +230,7 @@ export function useSessionState(): SessionState {
   const recordReaction = useCallback((result: ReactionResult) => dispatch({ type: 'recordReaction', result }), []);
   const completeRound = useCallback(() => dispatch({ type: 'roundTimerExpired' }), []);
   const completeRest = useCallback(() => dispatch({ type: 'restTimerExpired' }), []);
+  const resetPreferences = useCallback(() => dispatch({ type: 'resetPreferences' }), []);
 
   return {
     status: state.status,
@@ -226,5 +249,6 @@ export function useSessionState(): SessionState {
     recordReaction,
     completeRound,
     completeRest,
+    resetPreferences,
   };
 }
