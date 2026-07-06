@@ -5,7 +5,7 @@ interface StopButtonProps {
 /**
  * Shared Stop control for the in-session top bar (RunningView + RestView).
  * Consolidates the styling that previously drifted between RunningView's inline
- * button and RestView's STOP_BUTTON_CLASS/STYLE constants (audit B.3).
+ * button and RestView's extracted style constants (audit B.3).
  *
  * `pointer-events-auto` + `z-30` keep it the topmost hit-test target above the
  * pointer-events-none TopBar container and the z-10 touch zones, so a Stop tap
