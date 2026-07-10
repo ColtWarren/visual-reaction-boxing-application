@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Route, Switch, useLocation, Redirect } from 'wouter';
 import { useSessionState } from './hooks/useSessionState';
+import { usePWAUpdate } from './hooks/usePWAUpdate';
 import { usePreferencesPersistence } from './hooks/usePreferencesPersistence';
 import { useStimulusEngine } from './hooks/useStimulusEngine';
 import { useReactionInput } from './hooks/useReactionInput';
@@ -23,6 +25,22 @@ function AppContent() {
   // Step 12 (Lock 4): persist preferences across the session lifecycle.
   // Step 13 (Block 8): also exposes the reset controller for SettingsView.
   const { resetPreferences } = usePreferencesPersistence(session);
+
+  // Step 13 (Block 13): service-worker update owner. Gated on session.status so a
+  // pending update never interrupts a live round.
+  const { needRefresh: pwaNeedRefresh, updateServiceWorker: applyPWAUpdate } =
+    usePWAUpdate(session.status);
+
+  // TEMP DEV LOG (Block 13) — Block 14 replaces this with the real refresh
+  // toast that calls applyPWAUpdate(). Remove this whole effect there.
+  useEffect(() => {
+    if (pwaNeedRefresh) {
+      console.log(
+        '[PWA][Block13] update available — apply via updateServiceWorker()',
+        applyPWAUpdate,
+      );
+    }
+  }, [pwaNeedRefresh, applyPWAUpdate]);
 
   // Engine cycles whenever session is running (modality-agnostic).
   // The audio cue emitter (Step 10) will be another parallel consumer

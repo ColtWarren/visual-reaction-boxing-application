@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 // Build-time constants injected by Vite `define` (see vite.config.ts). Added in
 // Step 13 Block 3 (moved up from Block 8 so the Sidebar can consume the version
