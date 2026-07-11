@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { Route, Switch, useLocation, Redirect } from 'wouter';
 import { useSessionState } from './hooks/useSessionState';
 import { usePWAUpdate } from './hooks/usePWAUpdate';
@@ -15,6 +15,7 @@ import { SessionSummary } from './components/SessionSummary';
 import { SettingsView } from './views/SettingsView';
 import { AboutView } from './views/AboutView';
 import { AppShell } from './components/AppShell';
+import { UpdateToast } from './components/UpdateToast';
 
 // AppContent holds all session hook wiring AND consumes router context
 // (useLocation). It must render UNDER the router provider — for ROUTING_MODE=path
@@ -31,16 +32,15 @@ function AppContent() {
   const { needRefresh: pwaNeedRefresh, updateServiceWorker: applyPWAUpdate } =
     usePWAUpdate(session.status);
 
-  // TEMP DEV LOG (Block 13) — Block 14 replaces this with the real refresh
-  // toast that calls applyPWAUpdate(). Remove this whole effect there.
-  useEffect(() => {
-    if (pwaNeedRefresh) {
-      console.log(
-        '[PWA][Block13] update available — apply via updateServiceWorker()',
-        applyPWAUpdate,
-      );
-    }
-  }, [pwaNeedRefresh, applyPWAUpdate]);
+  // Step 13 (Block 14): update-prompt lifecycle. The hook already gates
+  // pwaNeedRefresh out during a live round/rest; dismissal is UI-only state that
+  // hides the toast for the rest of this page load (a genuinely new build would
+  // re-fire onNeedRefresh on the next visit). acceptUpdate reloads to the new
+  // build; dismissUpdate just suppresses the prompt.
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const toastVisible = pwaNeedRefresh && !updateDismissed;
+  const acceptUpdate = applyPWAUpdate;
+  const dismissUpdate = () => setUpdateDismissed(true);
 
   // Engine cycles whenever session is running (modality-agnostic).
   // The audio cue emitter (Step 10) will be another parallel consumer
@@ -203,39 +203,49 @@ function AppContent() {
   // match, so without it an unsupported path would render blank. The
   // session-active branch above intentionally bypasses AppShell (fullscreen).
   return (
-    <AppShell>
-      <Switch>
-        <Route path="/settings">
-          <SettingsView onReset={resetPreferences} />
-        </Route>
-        <Route path="/about">
-          <AboutView />
-        </Route>
-        <Route path="/">
-          {session.status === 'idle' && (
-            <PreSessionScreen
-              mode={session.mode}
-              selectedPresetId={session.selectedPresetId}
-              config={session.config}
-              onModeChange={session.setMode}
-              onSelectPreset={session.selectPreset}
-              onConfigChange={session.setConfig}
-              onStart={handleStart}
-            />
-          )}
-          {session.status === 'summary' && (
-            <SessionSummary
-              results={session.results}
-              totalRounds={session.config.totalRounds}
-              onDismiss={session.dismissSummary}
-            />
-          )}
-        </Route>
-        <Route>
-          <Redirect to="/" replace />
-        </Route>
-      </Switch>
-    </AppShell>
+    <>
+      <AppShell>
+        <Switch>
+          <Route path="/settings">
+            <SettingsView onReset={resetPreferences} />
+          </Route>
+          <Route path="/about">
+            <AboutView />
+          </Route>
+          <Route path="/">
+            {session.status === 'idle' && (
+              <PreSessionScreen
+                mode={session.mode}
+                selectedPresetId={session.selectedPresetId}
+                config={session.config}
+                onModeChange={session.setMode}
+                onSelectPreset={session.selectPreset}
+                onConfigChange={session.setConfig}
+                onStart={handleStart}
+              />
+            )}
+            {session.status === 'summary' && (
+              <SessionSummary
+                results={session.results}
+                totalRounds={session.config.totalRounds}
+                onDismiss={session.dismissSummary}
+              />
+            )}
+          </Route>
+          <Route>
+            <Redirect to="/" replace />
+          </Route>
+        </Switch>
+      </AppShell>
+      {/* Mounted outside the session-precedence branch above so it floats over
+          any non-session screen (fixed z-50). usePWAUpdate suppresses the prompt
+          during running/rest, so no in-progress round is ever interrupted. */}
+      <UpdateToast
+        visible={toastVisible}
+        onAccept={acceptUpdate}
+        onDismiss={dismissUpdate}
+      />
+    </>
   );
 }
 
