@@ -4,6 +4,7 @@ import { SidebarContent } from './SidebarContent';
 import { MobileDrawer } from './MobileDrawer';
 import { HamburgerButton } from './HamburgerButton';
 import { useDrawer } from '../hooks/useDrawer';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 interface AppShellProps {
   children: ReactNode;
@@ -21,11 +22,13 @@ const DRAWER_ID = 'app-primary-drawer';
  */
 export function AppShell({ children }: AppShellProps) {
   const { isOpen, open, close, triggerRef } = useDrawer();
+  // Single owner of the install model; threaded to both sidebar contexts below.
+  const installPrompt = useInstallPrompt();
 
   return (
     <div className="flex min-h-dvh w-full bg-rd-bg-base">
       {/* Desktop sidebar (owns its <aside>) */}
-      <Sidebar />
+      <Sidebar installPrompt={installPrompt} />
 
       {/* Mobile hamburger toggle */}
       <HamburgerButton
@@ -37,7 +40,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Mobile overlay drawer (owns a <div>; nav from shared SidebarContent) */}
       <MobileDrawer isOpen={isOpen} onClose={close} id={DRAWER_ID}>
-        <SidebarContent onNavigate={close} />
+        <SidebarContent installPrompt={installPrompt} onNavigate={close} />
       </MobileDrawer>
 
       <main className="min-h-dvh min-w-0 flex-1 overflow-auto">{children}</main>

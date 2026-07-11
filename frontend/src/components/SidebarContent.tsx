@@ -1,9 +1,13 @@
 import { NavItem } from './NavItem';
 import { NavSeparator } from './NavSeparator';
+import { InstallButton } from './InstallButton';
+import type { InstallPromptState } from '../hooks/useInstallPrompt';
 
 interface SidebarContentProps {
   /** Called after a nav tap — the mobile drawer passes its close() here. */
   onNavigate?: () => void;
+  /** Install model threaded from AppShell; rendered in the bottom slot. */
+  installPrompt: InstallPromptState;
 }
 
 /**
@@ -12,7 +16,7 @@ interface SidebarContentProps {
  * <div>. Extracted in Block 4 so both reuse it without nesting <aside> elements.
  * Relies on a flex-column parent so the version pins to the bottom.
  */
-export function SidebarContent({ onNavigate }: SidebarContentProps) {
+export function SidebarContent({ onNavigate, installPrompt }: SidebarContentProps) {
   return (
     <>
       {/* Brand */}
@@ -33,7 +37,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
       {/* Bottom: separator + install slot (Block 15) + version */}
       <div>
         <NavSeparator />
-        {/* InstallButton mounts here in Block 15 (receives installPrompt from parent). */}
+        <InstallButton installPrompt={installPrompt} />
         <div className="px-3 py-2 text-xs tabular-nums text-rd-text-muted">
           v{__APP_VERSION__}
         </div>
