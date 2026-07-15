@@ -48,10 +48,14 @@ function detectPlatform(): InstallPlatform {
     // from an actual Mac (which reports 0).
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isIOS) return 'ios';
-  // Capability check: only Chromium browsers expose this hook. Firefox / desktop
-  // Safari lack it, so they fall through to 'unsupported' and the button hides.
-  if ('onbeforeinstallprompt' in window) return 'chromium';
-  return 'unsupported';
+  // Non-iOS → 'chromium'. We do NOT probe 'onbeforeinstallprompt' in window: it
+  // reads false on Android even when the event later fires, which suppressed the
+  // install button on exactly the platform that needed it. The real signal is the
+  // beforeinstallprompt event firing (flips canTriggerInstall); InstallButton
+  // gates on that, so browsers that never fire it (Firefox, desktop Safari) keep
+  // the slot hidden via `chromium && !canTriggerInstall → null`. Installed-state
+  // still overrides platform to 'unsupported' in the hook return.
+  return 'chromium';
 }
 
 /** Installed iff running in a standalone/fullscreen display mode (any engine). */
