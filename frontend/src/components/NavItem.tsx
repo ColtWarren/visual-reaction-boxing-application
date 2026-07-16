@@ -22,7 +22,7 @@ export function NavItem({ to, label, onNavigate }: NavItemProps) {
       onClick={onNavigate}
       aria-current={isActive ? 'page' : undefined}
       className={
-        'block rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
+        'block rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary ' +
         (isActive
           ? 'bg-rd-bg-elevated text-rd-text-primary'
           : 'text-rd-text-secondary hover:bg-rd-bg-surface hover:text-rd-text-primary')

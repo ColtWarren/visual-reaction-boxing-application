@@ -49,14 +49,14 @@ export function UpdateToast({ visible, onAccept, onDismiss }: UpdateToastProps) 
         <button
           type="button"
           onClick={onAccept}
-          className="min-h-11 rounded-[var(--rd-radius-pill)] bg-red-600 px-5 text-sm font-medium text-white transition-colors hover:bg-red-500 active:bg-red-700"
+          className="min-h-11 rounded-[var(--rd-radius-pill)] bg-red-600 px-5 text-sm font-medium text-white transition-colors hover:bg-red-500 active:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
         >
           Update
         </button>
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-11 min-w-11 rounded-[var(--rd-radius-pill)] border border-rd-border-default px-4 text-sm font-medium text-rd-text-secondary transition-colors hover:text-rd-text-primary"
+          className="min-h-11 min-w-11 rounded-[var(--rd-radius-pill)] border border-rd-border-default px-4 text-sm font-medium text-rd-text-secondary transition-colors hover:text-rd-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
         >
           Dismiss
         </button>

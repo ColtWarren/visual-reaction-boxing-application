@@ -45,7 +45,7 @@ export function RestView({
   // Rest = 0: 1-second "Round N starting" flash, no countdown UI (R63 lock 4).
   if (restDurationMs === 0) {
     return (
-      <div className="flex min-h-dvh w-full flex-col text-zinc-100">
+      <div className="flex min-h-dvh w-full flex-col text-rd-text-primary">
         <TopBar
           currentRound={currentRoundIndex + 1}
           totalRounds={totalRounds}
@@ -66,7 +66,7 @@ export function RestView({
           <div className="text-3xl uppercase tracking-widest">
             Round {currentRoundIndex + 2} of {totalRounds}
           </div>
-          <div className="text-sm uppercase tracking-widest text-zinc-400">
+          <div className="text-sm uppercase tracking-widest text-rd-text-secondary">
             starting
           </div>
         </div>
@@ -76,7 +76,7 @@ export function RestView({
 
   // Standard rest — compact stacked layout (countdown / round / session).
   return (
-    <div className="flex min-h-dvh w-full flex-col text-zinc-100">
+    <div className="flex min-h-dvh w-full flex-col text-rd-text-primary">
       <TopBar
         currentRound={currentRoundIndex + 1}
         totalRounds={totalRounds}
@@ -98,7 +98,7 @@ export function RestView({
       >
         {/* Countdown header */}
         <div className="mb-8 text-center">
-          <div className="text-sm uppercase tracking-widest text-zinc-400">Rest</div>
+          <div className="text-sm uppercase tracking-widest text-rd-text-secondary">Rest</div>
           <div className="mt-1 text-2xl">
             Next Round: {currentRoundIndex + 2} / {totalRounds}
           </div>
@@ -109,7 +109,7 @@ export function RestView({
 
         {/* Just-finished round stats */}
         <div className="mb-6 w-full max-w-sm">
-          <div className="mb-2 text-sm uppercase tracking-wide text-zinc-400">
+          <div className="mb-2 text-sm uppercase tracking-wide text-rd-text-secondary">
             Round {currentRoundIndex + 1}
           </div>
           <div className="space-y-1 text-sm">
@@ -139,7 +139,7 @@ export function RestView({
             where it would be identical to the round-1 summary by definition. */}
         {currentRoundIndex > 0 && (
           <div className="w-full max-w-sm">
-            <div className="mb-2 text-sm uppercase tracking-wide text-zinc-400">
+            <div className="mb-2 text-sm uppercase tracking-wide text-rd-text-secondary">
               Session So Far
             </div>
             <div className="space-y-1 text-sm">

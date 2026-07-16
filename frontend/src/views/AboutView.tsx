@@ -56,7 +56,7 @@ export function AboutView() {
             href="https://github.com/ColtWarren/visual-reaction-boxing-application"
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded text-rd-text-primary underline hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
+            className="rounded text-rd-text-primary underline hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
           >
             github.com/ColtWarren/visual-reaction-boxing-application
           </a>

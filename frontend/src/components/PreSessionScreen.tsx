@@ -84,7 +84,7 @@ export function PreSessionScreen({
                 <button
                   key={preset.id}
                   onClick={() => onSelectPreset(preset.id)}
-                  className={`min-h-[48px] w-full rounded-md transition-colors ${
+                  className={`min-h-[48px] w-full rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary ${
                     emphasized ? 'py-4 text-xl' : 'py-3'
                   } ${
                     active
@@ -176,7 +176,7 @@ export function PreSessionScreen({
             token exists yet). Candidate for tokenization in Block 10. */}
         <button
           onClick={onStart}
-          className="w-full rounded-[var(--rd-radius-pill)] bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-500 active:bg-red-700"
+          className="w-full rounded-[var(--rd-radius-pill)] bg-red-600 px-6 py-3 font-medium text-white transition-colors hover:bg-red-500 active:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
         >
           Start Session
         </button>

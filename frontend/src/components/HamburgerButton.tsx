@@ -20,7 +20,7 @@ export const HamburgerButton = forwardRef<HTMLButtonElement, HamburgerButtonProp
         aria-label={isOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={isOpen}
         aria-controls={ariaControls}
-        className="fixed z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-rd-border-subtle bg-rd-bg-surface/80 text-rd-text-primary backdrop-blur-sm md:hidden"
+        className="fixed z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-rd-border-subtle bg-rd-bg-surface/80 text-rd-text-primary backdrop-blur-sm md:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
         style={{
           top: 'calc(0.75rem + var(--safe-top))',
           left: 'calc(0.75rem + var(--safe-left))',

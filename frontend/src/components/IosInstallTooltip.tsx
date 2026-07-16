@@ -75,7 +75,7 @@ export function IosInstallTooltip({ onClose, returnFocusTo }: IosInstallTooltipP
       <button
         type="button"
         onClick={onClose}
-        className="mt-2 min-h-9 rounded-[var(--rd-radius-pill)] px-3 text-xs font-medium text-rd-text-secondary transition-colors hover:text-rd-text-primary"
+        className="mt-2 min-h-9 rounded-[var(--rd-radius-pill)] px-3 text-xs font-medium text-rd-text-secondary transition-colors hover:text-rd-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
       >
         Got it
       </button>

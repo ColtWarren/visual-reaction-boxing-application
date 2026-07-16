@@ -42,7 +42,7 @@ export function InstallButton({ installPrompt }: InstallButtonProps) {
         type="button"
         onClick={handleClick}
         aria-expanded={platform === 'ios' ? tooltipOpen : undefined}
-        className="flex min-h-11 w-full items-center justify-center rounded-lg border border-rd-border-default px-3 text-sm font-medium text-rd-text-secondary transition-colors hover:bg-rd-bg-surface hover:text-rd-text-primary"
+        className="flex min-h-11 w-full items-center justify-center rounded-lg border border-rd-border-default px-3 text-sm font-medium text-rd-text-secondary transition-colors hover:bg-rd-bg-surface hover:text-rd-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
       >
         {label}
       </button>

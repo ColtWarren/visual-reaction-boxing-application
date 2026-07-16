@@ -60,7 +60,7 @@ export function SettingsView({ onReset }: SettingsViewProps) {
           <button
             type="button"
             onClick={handleReset}
-            className="min-h-11 rounded-lg border border-rd-border-subtle bg-rd-bg-elevated px-4 py-2 text-rd-text-primary transition-colors hover:bg-rd-bg-surface"
+            className="min-h-11 rounded-lg border border-rd-border-subtle bg-rd-bg-elevated px-4 py-2 text-rd-text-primary transition-colors hover:bg-rd-bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
           >
             Reset preferences
           </button>

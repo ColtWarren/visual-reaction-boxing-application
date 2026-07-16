@@ -24,7 +24,7 @@ function accuracyColorClass(accuracy: number): string {
 
 function SecondaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-rd-bg-surface/50 p-3 text-center">
+    <div className="rounded-[var(--rd-radius-card)] bg-rd-bg-surface/50 p-3 text-center">
       <div className="mb-1 text-xs uppercase tracking-wider text-rd-text-muted">
         {label}
       </div>
@@ -149,7 +149,7 @@ export function SessionSummary({ results, totalRounds, onDismiss }: SessionSumma
         {/* PER-ROUND breakdown (optional) — full detail (Accuracy, Avg RT, Best
             RT, and colored Correct/Incorrect/Missed), derived internally. */}
         {showPerRound && (
-          <div className="flex flex-col gap-4 rounded-lg bg-rd-bg-surface/50 p-4">
+          <div className="flex flex-col gap-4 rounded-[var(--rd-radius-card)] bg-rd-bg-surface/50 p-4">
             <div className="text-xs uppercase tracking-wider text-rd-text-muted">
               Per Round
             </div>
@@ -203,7 +203,7 @@ export function SessionSummary({ results, totalRounds, onDismiss }: SessionSumma
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-11 w-full rounded-[var(--rd-radius-pill)] bg-rd-text-primary px-6 py-3 font-medium text-rd-bg-base transition-opacity hover:opacity-90 active:opacity-80"
+          className="min-h-11 w-full rounded-[var(--rd-radius-pill)] bg-rd-text-primary px-6 py-3 font-medium text-rd-bg-base transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
         >
           Done
         </button>

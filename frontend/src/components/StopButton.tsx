@@ -19,7 +19,7 @@ export function StopButton({ onClick }: StopButtonProps) {
       data-testid="top-bar-stop"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={onClick}
-      className="pointer-events-auto z-30 rounded-lg border border-rd-border-subtle bg-rd-bg-elevated/80 px-4 py-2 text-sm font-medium uppercase tracking-wider text-rd-text-primary backdrop-blur-sm"
+      className="pointer-events-auto z-30 rounded-lg border border-rd-border-subtle bg-rd-bg-elevated/80 px-4 py-2 text-sm font-medium uppercase tracking-wider text-rd-text-primary backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rd-text-primary"
     >
       Stop
     </button>
