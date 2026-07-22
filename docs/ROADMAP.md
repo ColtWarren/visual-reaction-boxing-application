@@ -39,6 +39,8 @@ usable by the founder as a personal training tool.
 
 ## Phase 1.5 — Extension (post-V1)
 
+- **Stance-aware cue mapping** (orthodox / southpaw — cue-to-defense mapping
+  mirrors with stance; first mechanic change since Step 12)
 - **Touch input optimization** (closes gap on Principle 5 — mobile accessibility)
 - **Level 5: Combination Defense** (sequential cue chains, Purple cue active)
 - Per-cue weakness tracking
