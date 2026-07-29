@@ -124,6 +124,7 @@ function AppContent() {
     stimulusForInput,
     session.currentRoundIndex,
     session.recordReaction,
+    session.stance,
   );
 
   // Step 11: miss detection (Anchor 7). Active only while running; the timeout
@@ -176,6 +177,7 @@ function AppContent() {
           <RunningView
             mode={session.mode}
             stimulus={isVisualStimulusActive ? stimulus : null}
+            stance={session.stance}
             currentRoundIndex={session.currentRoundIndex}
             totalRounds={session.config.totalRounds}
             onStop={session.stopSession}

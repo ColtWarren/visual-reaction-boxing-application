@@ -1,7 +1,7 @@
-import { DEFENSE_VISUAL_MAP } from '../lib';
+import { resolveDefenseVisual } from '../lib';
 import type { CueMode } from '../hooks/useSessionState';
 import type { ActiveStimulus } from '../types/stimulus';
-import type { DefenseFamily } from '../types/attack';
+import type { InputDirection, Stance } from '../types/stance';
 import Cue from './Cue';
 import { TouchZones } from './TouchZones';
 import { TopBar } from './TopBar';
@@ -9,16 +9,19 @@ import { TopBar } from './TopBar';
 interface RunningViewProps {
   mode: CueMode;
   stimulus: ActiveStimulus | null;
+  /** Active (idle-locked) stance; drives stance-aware cue color/position. */
+  stance: Stance;
   currentRoundIndex: number;
   totalRounds: number;
   onStop: () => void;
   /** Touch entry point (submitDefenseInput from useReactionInput). */
-  onDefenseInput: (defense: DefenseFamily, inputAtMs: number) => void;
+  onDefenseInput: (direction: InputDirection, inputAtMs: number) => void;
 }
 
 export function RunningView({
   mode,
   stimulus,
+  stance,
   currentRoundIndex,
   totalRounds,
   onStop,
@@ -47,13 +50,15 @@ export function RunningView({
           useReactionInput path as the keyboard. */}
       <TouchZones onDefenseInput={onDefenseInput} />
 
-      {/* Visual cue (in visual or combined modes). Step 10: color/position
-          derive from the defense family via DEFENSE_VISUAL_MAP — the single
-          source of truth. Cue stays a pure presentational component. */}
+      {/* Visual cue (in visual or combined modes). Step 10 / Theme 4: color and
+          position derive from the defense family via resolveDefenseVisual for the
+          active stance — the single source of truth. Under southpaw the slip
+          pair's position mirrors (Design B); color is stance-invariant. Cue
+          stays a pure presentational component. */}
       {showVisualCue && stimulus && (
         <Cue
-          color={DEFENSE_VISUAL_MAP[stimulus.defense].color}
-          position={DEFENSE_VISUAL_MAP[stimulus.defense].position}
+          color={resolveDefenseVisual(stimulus.defense, stance).color}
+          position={resolveDefenseVisual(stimulus.defense, stance).position}
         />
       )}
 

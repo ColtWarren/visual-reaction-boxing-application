@@ -19,14 +19,16 @@
  *           input gating lives at the App.tsx stimulusForInput integration
  *           point, NOT here).
  *
- * Arrow keys map to cue POSITION (via DEFENSE_VISUAL_MAP), not body-movement
- * direction (R42A v2). Single engine owner: this hook receives currentStimulus
- * as an argument; it never instantiates the engine.
+ * Arrow keys and touch zones map to a stance-neutral input DIRECTION; the shared
+ * classifier resolves that direction to a defense family for the active stance
+ * (Theme 4, Design B — southpaw mirrors the slip pair). Single engine owner:
+ * this hook receives currentStimulus as an argument; it never instantiates the
+ * engine.
  *
  * Stale-closure handling (R44A race fix): the keydown listener attaches once on
- * mount (empty dep array). currentStimulus, onReaction, and currentRoundIndex
- * are mirrored into refs via useLayoutEffect so the stable listener reads the
- * latest values at input time without re-attaching. useLayoutEffect (not
+ * mount (empty dep array). currentStimulus, onReaction, currentRoundIndex, and
+ * stance are mirrored into refs via useLayoutEffect so the stable listener reads
+ * the latest values at input time without re-attaching. useLayoutEffect (not
  * useEffect) updates the refs synchronously during commit, before the browser
  * can dispatch a queued keydown against stale refs.
  *
@@ -39,25 +41,29 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { ARROW_KEY_TO_EXPECTED_DEFENSE } from '../lib';
+import { ARROW_KEY_TO_DIRECTION, resolveDefenseFromInputDirection } from '../lib';
+import type { DefenseArrowKey } from '../lib';
 import type { ActiveStimulus } from '../types/stimulus';
-import type { DefenseFamily } from '../types/attack';
+import type { InputDirection, Stance } from '../types/stance';
 import type { ReactionClassification, HitReaction } from '../types/reaction';
 
 export interface ReactionInputController {
   /**
    * Component-scoped input entry point (touch/pointer). Captures the input's
-   * defense family and the performance.now() timestamp taken at the input
-   * moment, then runs the shared classifier. Stable identity across renders
-   * (R71 Amendment 11) so consumers can pass it to memoized children.
+   * response DIRECTION (Theme 4, Design B) and the performance.now() timestamp
+   * taken at the input moment, then runs the shared classifier — which resolves
+   * the direction to a defense family for the active stance. Stable identity
+   * across renders (R71 Amendment 11) so consumers can pass it to memoized
+   * children.
    */
-  submitDefenseInput: (defense: DefenseFamily, inputAtMs: number) => void;
+  submitDefenseInput: (direction: InputDirection, inputAtMs: number) => void;
 }
 
 export function useReactionInput(
   currentStimulus: ActiveStimulus | null,
   currentRoundIndex: number,
   onReaction: (result: HitReaction) => void,
+  stance: Stance,
 ): ReactionInputController {
   // Mirror currentStimulus into a ref so the keydown listener (attached once)
   // always reads the latest stimulus value at input time. (Decision 8, Option b.)
@@ -104,16 +110,29 @@ export function useReactionInput(
     currentRoundIndexRef.current = currentRoundIndex;
   }, [currentRoundIndex]);
 
+  // Mirror the active stance so the once-attached listener resolves an input
+  // direction to a family against the LATEST stance without re-attaching
+  // (R44A pattern, load-bearing). stance is idle-locked upstream (setStance is
+  // idle-only), so it never changes mid-session — but the classifier must still
+  // read currentStanceRef.current, never the closure `stance`, to stay
+  // stale-closure-safe like every other input the classifier depends on.
+  const currentStanceRef = useRef(stance);
+  useLayoutEffect(() => {
+    currentStanceRef.current = stance;
+  }, [stance]);
+
   // Shared classification core — modality-agnostic. Both the keyboard listener
   // and the touch-facing submitDefenseInput call this. Reads only refs, so its
   // identity is stable (empty deps); it is also returned AS submitDefenseInput.
   //
-  // The `defense` argument is the input's defense family; `inputAtMs` is the
-  // performance.now() captured at the input moment by the caller (keyboard:
-  // right after the repeat guard; touch: first statement of the pointer
-  // handler, per Lock 3).
+  // The `direction` argument is the input's response direction (Theme 4,
+  // Design B); `inputAtMs` is the performance.now() captured at the input
+  // moment by the caller (keyboard: right after the repeat guard; touch: first
+  // statement of the pointer handler, per Lock 3). Direction is resolved to a
+  // defense family for the active stance (via currentStanceRef) inside here, so
+  // both modalities share ONE resolve site and the stance stays a ref read.
   const classifyDefenseInput = useCallback(
-    (defense: DefenseFamily, inputAtMs: number): void => {
+    (direction: InputDirection, inputAtMs: number): void => {
       // Read the latest stimulus via ref; ignore inputs during dark canvas.
       const stimulus = currentStimulusRef.current;
       if (stimulus === null) return;
@@ -124,10 +143,18 @@ export function useReactionInput(
       if (hasClassifiedCurrentCueRef.current) return;
       hasClassifiedCurrentCueRef.current = true;
 
+      // Resolve the input direction to a defense family for the CURRENT stance
+      // (idle-locked, read via ref). Under southpaw the slip pair mirrors, so
+      // the same physical direction maps to the opposite slip family (Design B).
+      const family = resolveDefenseFromInputDirection(
+        direction,
+        currentStanceRef.current,
+      );
+
       // stimulus.defense is the single source of truth (Q3 lock). Both
       // timestamps come from performance.now() on the same monotonic clock.
       const classification: ReactionClassification =
-        stimulus.defense === defense ? 'correct' : 'incorrect';
+        stimulus.defense === family ? 'correct' : 'incorrect';
       const reaction: HitReaction = {
         result: 'hit',
         stimulusId: stimulus.id,
@@ -143,8 +170,11 @@ export function useReactionInput(
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       // Step 1: filter to arrow keys; the lookup is undefined for any other key.
-      const expectedDefense = ARROW_KEY_TO_EXPECTED_DEFENSE[event.key];
-      if (expectedDefense === undefined) return;
+      // Arrow keys map to a stance-neutral input DIRECTION (Design B); the
+      // classifier resolves direction -> family for the active stance.
+      const direction: InputDirection | undefined =
+        ARROW_KEY_TO_DIRECTION[event.key as DefenseArrowKey];
+      if (direction === undefined) return;
 
       // Step 2: prevent browser default (arrow-key scrolling) for MAPPED keys
       // only, so non-arrow keys retain normal behavior. (R42 unanimous v2.)
@@ -156,7 +186,7 @@ export function useReactionInput(
       // Steps 4-6 run inside the shared classifier. performance.now() is
       // captured here (right after the repeat guard) as the keyboard input
       // moment, then handed to the classifier.
-      classifyDefenseInput(expectedDefense, performance.now());
+      classifyDefenseInput(direction, performance.now());
     }
 
     window.addEventListener('keydown', handleKeyDown);
