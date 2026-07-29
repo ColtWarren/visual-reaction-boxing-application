@@ -10,6 +10,11 @@ export { ATTACK_DICTIONARY } from './attackDictionary';
 export {
   DEFENSE_VISUAL_MAP,
   ARROW_KEY_TO_EXPECTED_DEFENSE,
+  ORTHODOX_DEFENSE_VISUAL_MAP,
+  SOUTHPAW_DEFENSE_VISUAL_MAP,
+  ARROW_KEY_TO_DIRECTION,
+  resolveDefenseVisual,
+  resolveDefenseFromInputDirection,
 } from './defenseVisualMap';
 export type {
   V1CardinalColor,
@@ -17,4 +22,5 @@ export type {
   DefenseArrowKey,
   DefenseVisual,
 } from './defenseVisualMap';
+export type { Stance, InputDirection } from '../types/stance';
 export { VOICE_LINES_EN, getVoiceLine } from './voiceLines.en';
