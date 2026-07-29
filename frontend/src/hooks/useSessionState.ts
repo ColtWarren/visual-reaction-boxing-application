@@ -2,6 +2,7 @@ import { useReducer, useCallback } from 'react';
 import type { ReactionResult } from '../types/reaction';
 import type { SessionConfig } from '../types/round';
 import type { PresetId } from '../types/preferences';
+import type { Stance } from '../types/stance';
 import { PRESET_TO_CONFIG } from '../lib/sessionConfig';
 import { loadPreferences } from '../lib/preferencesStorage';
 
@@ -14,6 +15,7 @@ interface SessionStateValue {
   status: SessionStatus;
   mode: CueMode;
   selectedPresetId: PresetId;       // Step 12 (Lock 5); independent of mode
+  stance: Stance;                   // Theme 4; persisted + hydrated; idle-only edits
   results: ReactionResult[];
   config: SessionConfig;
   currentRoundIndex: number;        // 0-based; valid when status is 'running' or 'rest'
@@ -33,6 +35,7 @@ function createDefaultSessionState(): SessionStateValue {
     status: 'idle',
     mode: DEFAULT_MODE,
     selectedPresetId: 'quick-demo',
+    stance: 'orthodox',
     results: [],
     config: PRESET_TO_CONFIG['quick-demo'],
     currentRoundIndex: 0,
@@ -54,6 +57,7 @@ function buildInitialState(): SessionStateValue {
       ...base,
       mode: persisted.mode,
       selectedPresetId: persisted.selectedPresetId,
+      stance: persisted.stance,
       config: persisted.config,
     };
   }
@@ -63,6 +67,7 @@ function buildInitialState(): SessionStateValue {
 // Action names clarify system-driven semantics for timer expirations
 type SessionAction =
   | { type: 'setMode'; mode: CueMode }
+  | { type: 'setStance'; stance: Stance }
   | { type: 'selectPreset'; presetId: PresetId }
   | { type: 'setConfig'; config: Partial<SessionConfig> }
   | { type: 'start' }
@@ -93,6 +98,13 @@ function sessionReducer(
       // Mode only changes in idle (defensive invariant)
       return state.status === 'idle'
         ? { ...state, mode: action.mode }
+        : state;
+
+    case 'setStance':
+      // Stance only changes in idle (mirrors setMode). Independent of mode and
+      // preset; the locked active-session stance snapshot is a later block.
+      return state.status === 'idle'
+        ? { ...state, stance: action.stance }
         : state;
 
     case 'selectPreset':
@@ -191,11 +203,13 @@ export interface SessionState {
   status: SessionStatus;
   mode: CueMode;
   selectedPresetId: PresetId;
+  stance: Stance;
   results: ReactionResult[];
   config: SessionConfig;
   currentRoundIndex: number;
   phaseStartedAtMs: number | null;
   setMode: (mode: CueMode) => void;
+  setStance: (stance: Stance) => void;
   selectPreset: (presetId: PresetId) => void;
   setConfig: (config: Partial<SessionConfig>) => void;
   startSession: () => void;
@@ -222,6 +236,7 @@ export function useSessionState(): SessionState {
   );
 
   const setMode = useCallback((mode: CueMode) => dispatch({ type: 'setMode', mode }), []);
+  const setStance = useCallback((stance: Stance) => dispatch({ type: 'setStance', stance }), []);
   const selectPreset = useCallback((presetId: PresetId) => dispatch({ type: 'selectPreset', presetId }), []);
   const setConfig = useCallback((config: Partial<SessionConfig>) => dispatch({ type: 'setConfig', config }), []);
   const startSession = useCallback(() => dispatch({ type: 'start' }), []);
@@ -236,11 +251,13 @@ export function useSessionState(): SessionState {
     status: state.status,
     mode: state.mode,
     selectedPresetId: state.selectedPresetId,
+    stance: state.stance,
     results: state.results,
     config: state.config,
     currentRoundIndex: state.currentRoundIndex,
     phaseStartedAtMs: state.phaseStartedAtMs,
     setMode,
+    setStance,
     selectPreset,
     setConfig,
     startSession,

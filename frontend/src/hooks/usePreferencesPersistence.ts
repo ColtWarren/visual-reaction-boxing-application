@@ -26,6 +26,7 @@ import type {
   SessionStatus,
 } from './useSessionState';
 import type { PresetId } from '../types/preferences';
+import type { Stance } from '../types/stance';
 import {
   savePreferences,
   PREFS_VERSION,
@@ -35,7 +36,11 @@ import {
 export function usePreferencesPersistence(state: SessionState): {
   resetPreferences: () => void;
 } {
-  const lastSavedRef = useRef<{ preset: PresetId; mode: CueMode } | null>(null);
+  const lastSavedRef = useRef<{
+    preset: PresetId;
+    mode: CueMode;
+    stance: Stance;
+  } | null>(null);
   const lastStatusRef = useRef<SessionStatus | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -80,7 +85,8 @@ export function usePreferencesPersistence(state: SessionState): {
     if (state.status !== 'idle' && state.status !== 'summary') return;
     if (
       lastSavedRef.current?.preset === state.selectedPresetId &&
-      lastSavedRef.current?.mode === state.mode
+      lastSavedRef.current?.mode === state.mode &&
+      lastSavedRef.current?.stance === state.stance
     ) {
       return;
     }
@@ -88,11 +94,16 @@ export function usePreferencesPersistence(state: SessionState): {
       version: PREFS_VERSION,
       mode: state.mode,
       selectedPresetId: state.selectedPresetId,
+      stance: state.stance,
       config: state.config,
     });
-    lastSavedRef.current = { preset: state.selectedPresetId, mode: state.mode };
+    lastSavedRef.current = {
+      preset: state.selectedPresetId,
+      mode: state.mode,
+      stance: state.stance,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.selectedPresetId, state.mode, state.status]);
+  }, [state.selectedPresetId, state.mode, state.stance, state.status]);
 
   // Effect 2: debounced save on Custom slider changes during idle.
   useEffect(() => {
@@ -111,12 +122,13 @@ export function usePreferencesPersistence(state: SessionState): {
         version: PREFS_VERSION,
         mode: state.mode,
         selectedPresetId: state.selectedPresetId,
+        stance: state.stance,
         config: state.config,
       });
       debounceTimerRef.current = null;
     }, 300);
     return () => cancelPending();
-  }, [state.config, state.status, state.selectedPresetId, state.mode, cancelPending]);
+  }, [state.config, state.status, state.selectedPresetId, state.mode, state.stance, cancelPending]);
 
   // Effect 3: flush-on-start. When a session begins, commit any pending
   // debounced edit immediately so the started config is what gets persisted.
@@ -129,6 +141,7 @@ export function usePreferencesPersistence(state: SessionState): {
         version: PREFS_VERSION,
         mode: state.mode,
         selectedPresetId: state.selectedPresetId,
+        stance: state.stance,
         config: state.config,
       });
     }
@@ -153,6 +166,7 @@ export function usePreferencesPersistence(state: SessionState): {
         version: PREFS_VERSION,
         mode: state.mode,
         selectedPresetId: state.selectedPresetId,
+        stance: state.stance,
         config: state.config,
       });
     }

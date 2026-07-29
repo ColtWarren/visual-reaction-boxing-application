@@ -11,6 +11,7 @@
 
 import type { CueMode } from '../hooks/useSessionState';
 import type { SessionConfig } from './round';
+import type { Stance } from './stance';
 
 /** The three workout presets (Lock 5). `custom` preserves user-edited config. */
 export type PresetId = 'quick-demo' | '3x3-standard' | 'custom';
@@ -25,7 +26,10 @@ export interface PersistedPreferencesV1 {
   /**
    * Schema version literal. `isValidPreferences` rejects any payload whose
    * `version` !== `PREFS_VERSION`, so a mismatch resolves to first-launch
-   * defaults (Lock 4). Bump this (and add a migration) when the shape changes.
+   * defaults (Lock 4). Versioning policy: breaking changes (removing or
+   * retyping existing fields) require a new version literal plus a migration;
+   * additive optional fields with a sensible default may be introduced within
+   * the current version without a bump (loadPreferences backfills the default).
    */
   version: 1;
 
@@ -49,4 +53,12 @@ export interface PersistedPreferencesV1 {
    * load for any non-`custom` preset.
    */
   config: SessionConfig;
+
+  /**
+   * Boxing stance — 'orthodox' | 'southpaw' (Theme 4). Additive field within v1:
+   * legacy envelopes written before stance existed have none, so `loadPreferences`
+   * backfills 'orthodox' after validation and `isValidPreferences` tolerates a
+   * missing stance while rejecting a present-but-invalid one.
+   */
+  stance: Stance;
 }

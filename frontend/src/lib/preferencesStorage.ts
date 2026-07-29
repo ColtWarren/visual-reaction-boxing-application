@@ -13,6 +13,7 @@
 import type { CueMode } from '../hooks/useSessionState';
 import type { SessionConfig } from '../types/round';
 import type { PersistedPreferencesV1, PresetId } from '../types/preferences';
+import type { Stance } from '../types/stance';
 import { PRESET_TO_CONFIG } from './sessionConfig';
 
 /**
@@ -29,6 +30,7 @@ const VALID_PRESET_IDS: readonly PresetId[] = [
   '3x3-standard',
   'custom',
 ];
+const VALID_STANCES: readonly Stance[] = ['orthodox', 'southpaw'];
 
 /** Structural guard for the embedded SessionConfig (numbers only; no bounds). */
 function isValidConfig(value: unknown): value is SessionConfig {
@@ -44,8 +46,15 @@ function isValidConfig(value: unknown): value is SessionConfig {
 /**
  * Full structural validation of an unknown parsed value. A `version` other
  * than PREFS_VERSION fails here, so version mismatches resolve to defaults.
+ *
+ * `stance` is an additive field (Theme 4): a MISSING stance is tolerated (legacy
+ * envelopes predate it — loadPreferences backfills the default), but a
+ * present-but-invalid stance is rejected. Exported so storage tests can assert
+ * the tolerate-missing / reject-invalid boundary directly.
  */
-function isValidPreferences(value: unknown): value is PersistedPreferencesV1 {
+export function isValidPreferences(
+  value: unknown,
+): value is PersistedPreferencesV1 {
   if (value === null || typeof value !== 'object') return false;
   const p = value as Record<string, unknown>;
   if (p.version !== PREFS_VERSION) return false;
@@ -59,6 +68,9 @@ function isValidPreferences(value: unknown): value is PersistedPreferencesV1 {
     return false;
   }
   if (!isValidConfig(p.config)) return false;
+  if (p.stance !== undefined && !VALID_STANCES.includes(p.stance as Stance)) {
+    return false;
+  }
   return true;
 }
 
@@ -77,6 +89,12 @@ export function loadPreferences(): PersistedPreferencesV1 | null {
     // storage can never surface a named preset with off-spec durations.
     if (parsed.selectedPresetId !== 'custom') {
       parsed.config = PRESET_TO_CONFIG[parsed.selectedPresetId];
+    }
+    // Theme 4: backfill stance for legacy envelopes written before the field
+    // existed (isValidPreferences tolerates its absence), so the returned value
+    // always has a defined stance. Additive field, no version bump.
+    if ((parsed as { stance?: Stance }).stance === undefined) {
+      parsed.stance = 'orthodox';
     }
     return parsed;
   } catch (e) {
