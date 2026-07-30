@@ -220,9 +220,11 @@ function AppContent() {
                 mode={session.mode}
                 selectedPresetId={session.selectedPresetId}
                 config={session.config}
+                stance={session.stance}
                 onModeChange={session.setMode}
                 onSelectPreset={session.selectPreset}
                 onConfigChange={session.setConfig}
+                onStanceChange={session.setStance}
                 onStart={handleStart}
               />
             )}

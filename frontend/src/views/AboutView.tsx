@@ -43,7 +43,8 @@ export function AboutView() {
             <li>
               <strong className="text-rd-text-secondary">Controls:</strong> Tap
               the matching edge of the screen (left / right / top / bottom). On
-              desktop, use the arrow keys.
+              desktop, use the arrow keys. In Southpaw stance the left/right cues
+              mirror, so your response side matches the fighter's lead.
             </li>
           </ul>
         </section>

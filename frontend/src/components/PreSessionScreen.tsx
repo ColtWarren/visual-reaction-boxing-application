@@ -1,6 +1,7 @@
 import type { CueMode } from '../hooks/useSessionState';
 import type { SessionConfig } from '../types/round';
 import type { PresetId } from '../types/preferences';
+import type { Stance } from '../types/stance';
 import { SESSION_CONFIG_LIMITS, WORKOUT_PRESETS } from '../lib/sessionConfig';
 import { ModeButton } from './ModeButton';
 
@@ -8,9 +9,11 @@ interface PreSessionScreenProps {
   mode: CueMode;
   selectedPresetId: PresetId;
   config: SessionConfig;
+  stance: Stance;
   onModeChange: (mode: CueMode) => void;
   onSelectPreset: (presetId: PresetId) => void;
   onConfigChange: (config: Partial<SessionConfig>) => void;
+  onStanceChange: (stance: Stance) => void;
   onStart: () => void;
 }
 
@@ -26,9 +29,11 @@ export function PreSessionScreen({
   mode,
   selectedPresetId,
   config,
+  stance,
   onModeChange,
   onSelectPreset,
   onConfigChange,
+  onStanceChange,
   onStart,
 }: PreSessionScreenProps) {
   return (
@@ -67,6 +72,25 @@ export function PreSessionScreen({
               label="Combined"
               active={mode === 'combined'}
               onClick={() => onModeChange('combined')}
+            />
+          </div>
+        </section>
+
+        {/* Stance — saved default stance (a stable setting, persists like Mode). */}
+        <section>
+          <h2 className="mb-3 text-xs uppercase tracking-wider text-rd-text-muted">
+            Stance
+          </h2>
+          <div className="flex gap-2">
+            <ModeButton
+              label="Orthodox"
+              active={stance === 'orthodox'}
+              onClick={() => onStanceChange('orthodox')}
+            />
+            <ModeButton
+              label="Southpaw"
+              active={stance === 'southpaw'}
+              onClick={() => onStanceChange('southpaw')}
             />
           </div>
         </section>
