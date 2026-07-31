@@ -232,6 +232,12 @@ function AppContent() {
               <SessionSummary
                 results={session.results}
                 totalRounds={session.config.totalRounds}
+                // session.stance is safe to display here: stance is idle-only
+                // (setStance no-ops in running/rest/summary), so it equals the
+                // stance the session actually ran under. If stance ever becomes
+                // editable outside idle, switch this to a captured per-session
+                // snapshot (activeSessionConfig).
+                stance={session.stance}
                 onDismiss={session.dismissSummary}
               />
             )}

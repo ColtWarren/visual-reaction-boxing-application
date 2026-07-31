@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import type { ReactionResult } from '../types/reaction';
+import type { Stance } from '../types/stance';
 import { computeStats } from '../lib/sessionStats';
 
 interface SessionSummaryProps {
   results: ReactionResult[];
   totalRounds: number;
+  stance: Stance;
   onDismiss: () => void;
 }
 
@@ -58,7 +60,7 @@ function TallyStat({
   );
 }
 
-export function SessionSummary({ results, totalRounds, onDismiss }: SessionSummaryProps) {
+export function SessionSummary({ results, totalRounds, stance, onDismiss }: SessionSummaryProps) {
   // R63 lock 1: accuracy = correct / (correct + incorrect); misses are a separate
   // metric, NOT in the accuracy denominator. computeStats owns this formula.
   const sessionStats = useMemo(() => computeStats(results), [results]);
@@ -97,7 +99,13 @@ export function SessionSummary({ results, totalRounds, onDismiss }: SessionSumma
       {/* my-auto centers the column when it fits and lets it scroll when tall
           (multi-round breakdown) without the flex-centering clip. */}
       <div className="my-auto flex w-full max-w-md flex-col gap-6">
-        <h1 className="text-center text-xl font-semibold">Session Complete</h1>
+        <div className="text-center">
+          <h1 className="text-xl font-semibold">Session Complete</h1>
+          {/* Session context, not a stat: which stance this session ran under. */}
+          <div className="mt-1 text-xs uppercase tracking-wider text-rd-text-muted">
+            {stance === 'southpaw' ? 'Southpaw' : 'Orthodox'}
+          </div>
+        </div>
 
         {/* HERO: Accuracy — neutral em-dash when nothing was classified. */}
         <div className="text-center">
