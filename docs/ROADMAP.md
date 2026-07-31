@@ -40,7 +40,15 @@ usable by the founder as a personal training tool.
 ## Phase 1.5 — Extension (post-V1)
 
 - **Stance-aware cue mapping** (orthodox / southpaw — cue-to-defense mapping
-  mirrors with stance; first mechanic change since Step 12)
+  mirrors with stance; first mechanic change since Step 12) — **SHIPPED**
+  (Step 14, v0.14.0; Design B — see `docs/step-14/STEP_14_COMPLETION.md`)
+  - Per-session stance persistence rides with the IndexedDB session history
+    (below); the summary displays stance now, durable records come with the store.
+  - Hybrid IA (Settings defaults + PreSession effective value +
+    `activeSessionConfig` snapshot) adopted when intensity/difficulty and
+    discipline/strike-pattern features land.
+  - Radiogroup a11y pass across Mode + Workout + Stance together (currently the
+    bare-button convention — keyboard-operable, but no `role="radiogroup"`).
 - **Touch input optimization** (closes gap on Principle 5 — mobile accessibility)
 - **Level 5: Combination Defense** (sequential cue chains, Purple cue active)
 - Per-cue weakness tracking
