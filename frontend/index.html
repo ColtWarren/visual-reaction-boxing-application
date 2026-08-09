@@ -9,6 +9,379 @@
     <!-- theme-color: hex equivalent of Tailwind's zinc-950 oklch() value, makes mobile status bar blend with dark shell -->
     <meta name="theme-color" content="#09090b" />
     <title>Reaction Defense Training</title>
+<!-- RD_BOOT_GUARD_START -->
+<script>
+  (function () {
+    var WATCHDOG_MS = 10000;
+    var RESET_UI_TIMEOUT_MS = 15000;
+    var DIAG_TIMEOUT_MS = 3000;
+    var PROBE_TIMEOUT_MS = 5000;
+    var shown = false, settled = false, resetting = false;
+    var trigger = null;
+
+    function rootEl() { return document.getElementById('root'); }
+    function rootFilled() {
+      var r = rootEl();
+      return !!(r && r.firstChild);
+    }
+
+    function diagnostics() {
+      var d = {
+        at: new Date().toISOString(),
+        url: location.href,
+        ua: navigator.userAgent,
+        online: navigator.onLine,
+        trigger: trigger,
+        controller: null,
+        registrations: [],
+        caches: [],
+        voices: null,
+        partial: false
+      };
+      var jobs = [];
+      var done = false, expired = false;
+      function write(fn) { if (!expired && !done) { try { fn(); } catch (_) {} } }
+      function partial() { write(function () { d.partial = true; }); }
+
+      try {
+        if (window.speechSynthesis && speechSynthesis.getVoices) {
+          // E23: answers the offline-audio question if it ever surfaces.
+          d.voices = speechSynthesis.getVoices().map(function (v) {
+            return { name: v.name, lang: v.lang, local: v.localService, def: v.default };
+          });
+        }
+      } catch (_) {}
+      try {
+        if (navigator.serviceWorker) {
+          d.controller = navigator.serviceWorker.controller
+            ? navigator.serviceWorker.controller.scriptURL : null;
+          jobs.push(
+            navigator.serviceWorker.getRegistrations().then(function (rs) {
+              write(function () {
+                d.registrations = rs.map(function (r) {
+                  return {
+                    scope: r.scope,
+                    active: r.active ? r.active.scriptURL : null,
+                    waiting: r.waiting ? r.waiting.scriptURL : null,
+                    installing: r.installing ? r.installing.scriptURL : null
+                  };
+                });
+              });
+            }).catch(partial)   // a failed collector means INCOMPLETE data
+          );
+        }
+        if (window.caches && caches.keys) {
+          jobs.push(caches.keys()
+            .then(function (ks) { write(function () { d.caches = ks; }); })
+            .catch(partial));
+        }
+      } catch (_) { d.partial = true; }
+
+      // getRegistrations() and caches.keys() can fail to settle in pathological
+      // storage states. Cap collection rather than hang. Round 6 P1: the timer
+      // must be CLEARED on success (else partial flipped true 3 s after a clean
+      // collection), late jobs must not mutate the returned object, and the
+      // result is returned as a snapshot so nothing can change it afterward.
+      var diagTimer = null;
+      var capped = new Promise(function (resolve) {
+        diagTimer = window.setTimeout(function () {
+          if (done) return;
+          expired = true;
+          d.partial = true;
+          resolve('timeout');
+        }, DIAG_TIMEOUT_MS);
+      });
+      function snapshot() {
+        done = true;
+        if (diagTimer !== null) window.clearTimeout(diagTimer);
+        try { return JSON.parse(JSON.stringify(d)); } catch (_) { return d; }
+      }
+      return Promise.race([
+        Promise.all(jobs).then(function () { return 'complete'; },
+                               function () { return 'complete'; }),
+        capped
+      ]).then(snapshot, snapshot);
+    }
+
+    function probeOrigin() {
+      // Proves a healthy Reaction Defense shell is retrievable from the network
+      // RIGHT NOW — not merely that something answered. A captive portal, auth
+      // gateway or TLS-interception box returns a readable 200 (round 6 P0).
+      //
+      // Non-navigation fetch: Workbox NavigationRoute only matches mode
+      // 'navigate' (§3.1), runtimeCaching is [] (E1), and the ?t= param is not
+      // in Workbox's default ignore list, so this genuinely hits the network.
+      // Deliberately NOT an /assets/ path — that is the URL class the SPA
+      // rewrite poisons (E12).
+      var url = '/__rd-reset-probe__?t=' + Date.now().toString(36);
+      var timed = new Promise(function (_, reject) {
+        window.setTimeout(function () { reject(new Error('probe-timeout')); },
+          PROBE_TIMEOUT_MS);
+      });
+      var req = fetch(url, {
+        mode: 'same-origin',
+        redirect: 'error',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'cache-control': 'no-cache' }
+      }).then(function (res) {
+        // 404 is a FAILURE, not a pass: per E14 a missing route is rewritten to
+        // index.html with 200, so a 404 means the environment no longer matches
+        // the assumption this probe rests on.
+        if (!res || !res.ok) throw new Error('probe-status');
+        if (new URL(res.url || url, location.href).origin !== location.origin) {
+          throw new Error('probe-origin');
+        }
+        var ct = (res.headers && res.headers.get)
+          ? (res.headers.get('content-type') || '') : '';
+        if (ct.indexOf('text/html') === -1) throw new Error('probe-type');
+        return res.text();
+      }).then(function (body) {
+        // Stable app-shell markers, NOT guard-specific ones — an older
+        // pre-guard shell is still a healthy origin (round 6).
+        // KEEP IN SYNC WITH index.html: if either string changes, reset
+        // fails closed and becomes unusable until this is updated.
+        if (body.indexOf('<title>Reaction Defense Training</title>') === -1 ||
+            body.indexOf('id="root"') === -1) {
+          throw new Error('probe-marker');
+        }
+        return true;
+      });
+      return Promise.race([req, timed]);
+    }
+
+    function panel() {
+      if (shown || settled || resetting || rootFilled()) return;
+      shown = true;
+
+      try {
+        var offline = navigator.onLine === false;
+        var parent = document.body || document.documentElement;
+        if (!parent) { shown = false; return; }
+
+        var host = document.createElement('div');
+        host.id = 'rd-boot-failure';
+        host.setAttribute('role', 'alert');
+        host.style.cssText =
+          'position:fixed;inset:0;z-index:2147483647;display:flex;' +
+          'align-items:center;justify-content:center;padding:1.5rem;' +
+          'background:#09090b;color:#fafafa;overflow:auto;' +
+          'font-family:system-ui,-apple-system,sans-serif;text-align:center';
+
+        host.innerHTML =
+          '<div style="max-width:24rem;width:100%">' +
+          '<h1 style="font-size:1.125rem;margin:0 0 .75rem">' +
+          'Reaction Defense could not start</h1>' +
+          '<p style="font-size:.875rem;line-height:1.5;margin:0 0 1.25rem;opacity:.8">' +
+          (offline
+            ? 'You appear to be offline. Reconnect and try again.'
+            : 'Something went wrong loading the app.') +
+          '</p>' +
+          '<button id="rd-retry" style="min-height:44px;padding:0 1.25rem;' +
+          'border:0;border-radius:9999px;background:#dc2626;color:#fff;' +
+          'font-size:.875rem;cursor:pointer">Try again</button>' +
+          (offline ? '' :
+            '<p style="margin:1.25rem 0 0"><button id="rd-reset" ' +
+            'style="min-height:44px;padding:0 1rem;background:none;border:0;' +
+            'color:#a1a1aa;font-size:.8125rem;text-decoration:underline;' +
+            'cursor:pointer">Clear cached app files</button></p>') +
+          '<p id="rd-note" style="font-size:.75rem;margin:.5rem 0 0;opacity:.55">' +
+          (offline
+            ? 'Do not clear cached files until you reconnect — the app needs a connection to download again.'
+            : 'Removes downloaded app files. Requires a connection to re-download.') +
+          '</p>' +
+          '<p style="margin:1rem 0 0"><button id="rd-diag" ' +
+          'style="min-height:44px;padding:0 1rem;background:none;border:0;' +
+          'color:#71717a;font-size:.75rem;text-decoration:underline;' +
+          'cursor:pointer">Copy diagnostic details</button></p>' +
+          '<textarea id="rd-diag-out" readonly style="display:none;width:100%;' +
+          'height:9rem;margin-top:.5rem;font-size:.7rem;background:#18181b;' +
+          'color:#d4d4d8;border:1px solid #3f3f46;border-radius:.375rem;' +
+          'padding:.5rem"></textarea>' +
+          '</div>';
+
+        parent.appendChild(host);
+
+        var note = document.getElementById('rd-note');
+        var retry = document.getElementById('rd-retry');
+        var reset = document.getElementById('rd-reset');
+        var diagBtn = document.getElementById('rd-diag');
+        var diagOut = document.getElementById('rd-diag-out');
+
+        retry.onclick = function () { location.reload(); };
+
+        diagBtn.onclick = function () {
+          diagnostics().then(function (d) {
+            var text = JSON.stringify(d, null, 2);
+            diagOut.style.display = 'block';
+            diagOut.value = text;
+            diagOut.select();
+            try {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function () {
+                  diagBtn.textContent = 'Copied';
+                }, function () {});
+              }
+            } catch (_) {}
+          });
+        };
+
+        if (reset) {
+          var beginReset = function () {
+            resetting = true;
+            note.textContent = 'Clearing cached files…';
+
+            var finished = false, abandoned = false;
+            var uiTimer = window.setTimeout(function () {
+              if (finished) return;
+              abandoned = true;   // P1 r5: a later resolution must NOT navigate
+              // INTENTIONAL: `resetting` stays true from here on, so
+              // retireIfMounted() can never remove this panel. Destructive work
+              // has already begun and cache/SW state is indeterminate; dropping
+              // the user into a half-cleared app would be worse. Terminal by
+              // design — do not "fix" this. (round 6, ratified)
+              note.textContent =
+                'Automatic reset did not finish. Close this tab and clear site data in browser settings.';
+              retry.disabled = false;
+            }, RESET_UI_TIMEOUT_MS);
+
+            var jobs = [];
+            if (navigator.serviceWorker) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (rs) {
+                  return Promise.all(rs.map(function (r) { return r.unregister(); }));
+                })
+              );
+            }
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (ks) {
+                  return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+                })
+              );
+            }
+
+            // Await unregistration before navigating. A reload issued while
+            // unregister() is pending can be intercepted by the stale worker.
+            // Promise.all([]) resolves immediately where the APIs are absent —
+            // correct: nothing to clear, so navigate.
+            Promise.all(jobs).then(function () {
+              finished = true;
+              window.clearTimeout(uiTimer);
+              if (abandoned) return;
+              location.replace('/?rd-reset=' + Date.now().toString(36));
+            }, function () {
+              finished = true;
+              window.clearTimeout(uiTimer);
+              if (abandoned) return;
+              note.textContent =
+                'Reset failed. Clear site data in your browser settings.';
+              retry.disabled = false;
+            });
+          };
+
+          var rearm = function (msg) {
+            note.textContent = msg;
+            reset.disabled = false;
+            retry.disabled = false;
+            reset.dataset.confirmed = '';
+            reset.textContent = 'Clear cached app files';
+          };
+
+          reset.onclick = function () {
+            if (reset.dataset.confirmed !== '1') {
+              reset.dataset.confirmed = '1';
+              reset.textContent = 'Tap again to confirm';
+              note.textContent =
+                'This deletes downloaded app files. You will need a connection to use the app again.';
+              return;
+            }
+
+            // P0 r5: `offline` was computed once at render. Connectivity can
+            // change afterward, and navigator.onLine === true does NOT prove the
+            // origin is reachable. unregister() and caches.delete() succeed fine
+            // without internet — only the navigation fails, by which point the
+            // offline installation is already destroyed. Re-check, then PROVE
+            // reachability, before any destruction.
+            if (navigator.onLine === false) {
+              rearm('You are offline. Reconnect before clearing cached files.');
+              return;
+            }
+
+            reset.disabled = true;
+            retry.disabled = true;
+            note.textContent = 'Checking connection…';
+
+            probeOrigin().then(beginReset, function () {
+              rearm('Cannot reach the server. Your cached files were NOT deleted — ' +
+                    'reconnect and try again.');
+            });
+          };
+        }
+      } catch (_) {
+        shown = false;   // never let the last line of defense throw silently
+      }
+    }
+
+    function isAppEntry(t) {
+      // E26: Vite drops arbitrary attributes, so no id marker is available.
+      // type="module" is verified to survive; same-origin excludes third-party
+      // scripts. The app emits exactly one module script.
+      if (!t || t.tagName !== 'SCRIPT' || t.type !== 'module' || !t.src) return false;
+      try {
+        return new URL(t.src, location.href).origin === location.origin;
+      } catch (_) { return false; }
+    }
+
+    window.addEventListener('error', function (e) {
+      if (isAppEntry(e.target)) {
+        trigger = 'entry-script-error';
+        diagnostics().then(function (d) {
+          if (window.console) console.error('[rd-boot] failure', d);
+        });
+        panel();
+      }
+    }, true);
+
+    window.setTimeout(function () {
+      if (rootFilled()) { settled = true; return; }
+      trigger = trigger || 'watchdog';
+      diagnostics().then(function (d) {
+        if (window.console) console.error('[rd-boot] failure', d);
+      });
+      panel();
+    }, WATCHDOG_MS);
+
+    // Retire the panel if the app mounts late. Runs until settled — no cutoff.
+    if (window.MutationObserver) {
+      var retireIfMounted = function () {
+        if (resetting || !rootFilled()) return false;
+        settled = true;
+        var host = document.getElementById('rd-boot-failure');
+        if (host && host.parentNode) host.parentNode.removeChild(host);
+        return true;
+      };
+      var obs = new MutationObserver(function () {
+        if (retireIfMounted()) obs.disconnect();
+      });
+      var startObs = function () {
+        var r = rootEl();
+        if (!r) return false;
+        // P0 r5: module scripts run BEFORE DOMContentLoaded, so by the time the
+        // DCL fallback fires the mount mutation may already have happened. An
+        // observer attached then would never fire, stranding the panel over a
+        // working app. Check current state on attach, not just future mutations.
+        if (retireIfMounted()) { obs.disconnect(); return true; }
+        obs.observe(r, { childList: true });
+        return true;
+      };
+      if (!startObs()) {
+        document.addEventListener('DOMContentLoaded', startObs);
+      }
+    }
+  })();
+</script>
+<!-- RD_BOOT_GUARD_END -->
   </head>
   <body>
     <div id="root"></div>
