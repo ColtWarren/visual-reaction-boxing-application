@@ -231,3 +231,5 @@ because all of them were consequences of automatic destruction.
 One measurement beat all reasoning: every reviewer accepted an
 `id="rd-app-entry"` marker design; a build probe showed Vite drops arbitrary
 attributes from the entry tag.
+
+_Returning-user update path exercised on the dev preview alias, 2026-08-17._
