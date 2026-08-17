@@ -49,6 +49,17 @@ usable by the founder as a personal training tool.
     discipline/strike-pattern features land.
   - Radiogroup a11y pass across Mode + Workout + Stance together (currently the
     bare-button convention — keyboard-operable, but no `role="radiogroup"`).
+- **Inline boot failure guard** (a white screen becomes a visible panel with Try
+  again / Clear cached app files / Copy diagnostic details; cause-agnostic,
+  nothing deleted without explicit user action, reset control not rendered while
+  offline) — **SHIPPED** (Step 14.0, v0.14.1 — see
+  `docs/step-14.0/STEP_14_0_COMPLETION.md`)
+  - Hardens **future deploys only**: a client already wedged on a pre-guard
+    shell does not have the inline code.
+  - Cloudflare Browser Cache TTL (4h, extension-based) deliberately left
+    unchanged — revisit only on a recurrence with a captured diagnosis.
+  - If the failure recurs, capture diagnostics with the panel's Copy control
+    **before** clearing anything; the Aug 1 cause was never identified.
 - **Touch input optimization** (closes gap on Principle 5 — mobile accessibility)
 - **Level 5: Combination Defense** (sequential cue chains, Purple cue active)
 - Per-cue weakness tracking
