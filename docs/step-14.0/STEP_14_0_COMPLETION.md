@@ -233,3 +233,5 @@ One measurement beat all reasoning: every reviewer accepted an
 attributes from the entry tag.
 
 _Returning-user update path exercised on the dev preview alias, 2026-08-17._
+
+_Update-reload retested with a controlling worker present, 2026-08-18._
